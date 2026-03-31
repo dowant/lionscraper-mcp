@@ -6,6 +6,7 @@ docs/
 # -----------------------------------------------------------------------------
 packages/node/node_modules/
 packages/node/dist/*
+packages/node/package-lock.json
 !packages/node/dist/.gitkeep
 *.tsbuildinfo
 
