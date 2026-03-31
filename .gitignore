@@ -1,0 +1,63 @@
+# 文档
+docs/
+
+# -----------------------------------------------------------------------------
+# Node — packages/node（构建产物保留空 dist 目录：见 dist/.gitkeep）
+# -----------------------------------------------------------------------------
+packages/node/node_modules/
+packages/node/dist/*
+!packages/node/dist/.gitkeep
+*.tsbuildinfo
+
+# -----------------------------------------------------------------------------
+# Python — packages/python
+# -----------------------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+packages/python/.venv/
+packages/python/venv/
+packages/python/dist/
+packages/python/build/
+*.egg
+.ruff_cache/
+.mypy_cache/
+.pytest_cache/
+.hypothesis/
+htmlcov/
+.coverage
+coverage.xml
+*.cover
+
+# -----------------------------------------------------------------------------
+# 根目录与通用
+# -----------------------------------------------------------------------------
+node_modules/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# 环境变量与密钥
+.env
+.env.*
+!.env.example
+
+# IDE
+.idea/
+.vscode/
+.cursor/
+.github/
+*.suo
+*.sw?
+
+# 操作系统
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# 杂项
+*.local

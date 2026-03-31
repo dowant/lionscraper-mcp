@@ -1,0 +1,39 @@
+{
+  "name": "@dowant/lionscraper",
+  "version": "1.0.0",
+  "description": "LionScraper MCP Server - Protocol bridge between MCP Clients and LionScraper Chrome Extension",
+  "type": "module",
+  "main": "dist/index.js",
+  "bin": {
+    "lionscraper-mcp": "dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "docs:messages": "node scripts/generate-message-doc.mjs"
+  },
+  "keywords": [
+    "mcp",
+    "lionscraper",
+    "web-scraping",
+    "chrome-extension"
+  ],
+  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1",
+    "ws": "^8.18.1",
+    "zod": "^3.24.4"
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.3",
+    "@types/ws": "^8.18.1",
+    "typescript": "^5.8.3",
+    "vitest": "^3.1.1"
+  }
+}

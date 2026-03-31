@@ -1,0 +1,22 @@
+# 通用规则：默认用LF存储，文本文件检出时根据系统自动转换（可选）
+* text=auto
+
+# 代码文件（.ts/.js/.json/.md等）：强制用LF存储，检出时保持LF（跨平台团队推荐）
+*.ts text eol=lf
+*.js text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.scss text eol=lf
+
+# 二进制文件（图片、压缩包等）：不转换换行符，避免损坏
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.zip binary
+*.rar binary
+
+# Windows专属文件（如.bat）：强制用CRLF
+*.bat text eol=crlf

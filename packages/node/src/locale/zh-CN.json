@@ -1,0 +1,147 @@
+{
+  "serverMessages": {
+    "browserNotInstalled": {
+      "message": "未在本机检测到 Google Chrome 或 Microsoft Edge（标准安装路径）。请先安装受支持的浏览器，然后再调用 ping。",
+      "hint": "便携版或自定义路径安装可能无法被检测。安装浏览器后，请通过 details.extension 中的商店链接安装 LionScraper 扩展。"
+    },
+    "extensionNotConnected": {
+      "message": "未连接到 LionScraper 扩展。在建立 WebSocket 桥之前，`ping` 可能会自动启动浏览器并等待扩展注册；若仍无法连接，常见原因是未安装扩展、扩展被禁用，或与本 MCP 进程之间的桥未建立。",
+      "hint": "安装时请用 **Chrome 或 Edge 的普通窗口**打开本次返回信息里的商店链接（不要用 MCP 客户端内置浏览器，通常**无法**安装扩展）。若已安装，在浏览器「扩展程序」里确认 LionScraper **已启用**，再执行 **`ping`**。若仍失败：对照**运行 MCP Server 的那个终端窗口**里显示的端口号，与用户目录下端口文件里的数字是否一致（Windows：`%USERPROFILE%\\.lionscraper\\port`；macOS/Linux：`~/.lionscraper/port`）。",
+      "troubleshoot": {
+        "1": "1. 用 **Chrome 或 Edge**（不要用 MCP 内置浏览器）打开商店链接，完成 LionScraper 扩展安装",
+        "2": "2. 在浏览器扩展管理页确认 LionScraper **已打开、未禁用**",
+        "3": "3. 保持 MCP Server 在运行；可再执行一次 **`ping`**，需要时允许自动打开浏览器",
+        "4": "4. **端口号要一致**：运行 MCP 的终端里会打印监听端口；用户目录下还有一个记录端口的小文件（Windows：`%USERPROFILE%\\.lionscraper\\port`，其它系统：`~/.lionscraper/port`）。两处数字应相同；若不同，请在 LionScraper 扩展里把桥接端口改成与 MCP 一致并重启",
+        "5": "5. 正常时，运行 MCP 的终端里会出现扩展已注册成功的提示；扩展会连接本机 `ws://127.0.0.1:{{port}}`。若始终没有注册提示，请在 Chrome/Edge 中打开 LionScraper 的**服务工作线程**或错误页查看原因"
+      }
+    },
+    "serverDraining": {
+      "requests": "本 MCP Server 正在排空（其他客户端接管桥接端口），无法接受请求。",
+      "new_tasks": "本 MCP Server 正在排空（其他客户端接管桥接端口），无法接受新任务。"
+    },
+    "bridge": {
+      "timeout": "桥接请求在 {{ms}}ms 后超时"
+    },
+    "disconnect": {
+      "replaced": "会话被新连接取代",
+      "extension_gone": "扩展已断开连接",
+      "server_shutdown": "服务器正在关闭"
+    },
+    "mcpTool": {
+      "responseTruncatedAfterLimit": "截断后 MCP 工具响应仍超过大小上限。"
+    }
+  },
+  "tools": {
+    "scrapeSharedPrefix": "### 先 `ping`\n新会话或不确定扩展在线：**先 `ping`**，再调任意 `scrape*`。若返回 **`EXTENSION_NOT_CONNECTED`**：**再 `ping`**，并按 `error.details.bridge`、MCP stderr、`~/.lionscraper/port` 排查 WebSocket 后重试。\n\n### `lang`（可选）\n`en-US` | `zh-CN`：本调用人读错误/排障语言，默认为英文；中文用户每次传 `lang: \"zh-CN\"`。\n",
+    "descriptions": {
+      "ping": "### 用途\n检查 LionScraper 扩展是否已通过本机 WebSocket 注册到当前 MCP Server。若未连接，**先尝试 Chrome、再尝试 Edge**（仅针对已检测到安装路径的渠道）：检测是否运行；允许时 **自动启动** 并在 **`postLaunchWaitMs`** 内轮询等待扩展注册。若 **本次 ping 新启动** 的浏览器在等待结束时仍未注册，Server 会 **关闭该浏览器** 再试下一渠道；**调用 ping 前已在运行的浏览器不会被关闭**。两轮都需要启动且均失败时，最坏等待时间约为 **`postLaunchWaitMs` 的两倍**。\n\n### 何时调用\n1. 新会话中，在任意 `scrape*` 之前。\n2. 任意工具返回 **`EXTENSION_NOT_CONNECTED`** 后立即再调。\n\n### 返回\n- 成功：`ok`、`bridgeOk`、`browser`、`extensionVersion`；若由本机启动了浏览器，可含 `diagnostics`（`launched`、`waitedMs`、`selectedBrowser` 等）。\n- 失败：`BROWSER_NOT_INSTALLED`（标准路径下未找到 Chrome/Edge），或 `EXTENSION_NOT_CONNECTED`（含 `details.browserProbe`、`details.bridge`、`details.install`）。\n\n### 参数\n- **`autoLaunchBrowser`**：可选布尔。`false` 时绝不 `spawn` 浏览器；对未运行的渠道将跳过并尽量继续尝试下一已安装渠道。省略时默认 **true**，但若环境变量 **`LIONSCRAPER_PING_AUTO_LAUNCH`** 为 `0` 或 `false` 则默认不启动；显式传 `true` 可覆盖环境变量仍允许启动。\n- **`postLaunchWaitMs`**：启动浏览器后，等待扩展完成注册的最长时间（毫秒），限制在 **3000～60000**，默认 **20000**。\n\n### 注意\n不打开页面、不采集数据。便携版/自定义路径浏览器可能检测不到。可选 `lang` 规则同上方 **`lang`** 段。",
+      "scrape": "### 用途\n**结构化**列表/表格/栅格采集：识别重复记录与字段，返回 **DataGroup[]** 与 `dataList`。**`maxPages`>1** 时可多页合并（扩展识别分页）。\n\n### 何时用\n- **优先**：分类页、搜索、商品表、数据表等多行多字段。\n- **长文正文**：先用 **`scrape_article`**（`url` 可为 string 或 string[]）；失败或结果不可用再对同一 URL 用 **`scrape`**。\n\n### 返回\n**MultiUrlResult**：各 URL 的 `ok`、`data`（成功为 DataGroup[]）、`error`、`meta`，及 **`summary`**（统计与可选反爬提示）。\n- **多数据组**：同一页常可识别出多个有效 **DataGroup**；单个成功项里 `data` 长度可 **大于 1**。答复用户时应**点名多组存在**（可摘要各组用途或字段差异），勿静默丢弃非主组。\n- **默认首推第 1 组**：**`data[0]`**（第 1 组）为扩展打分排序后的首选，**默认向用户推荐使用该组**作为主结果。\n- **例外**：若用户意图明显对应其他组（例如侧栏而非主列表），说明理由后可**改用它组**。\n\n### 参数要点\n- **`url`**：必填；string 或 string[]，单次最多 **50**（扩展强制）。\n- **`maxPages`**：默认 1；>1 多页合并。\n- 其余（`timeoutMs`、`bridgeTimeoutMs`、`scrapeInterval`、`concurrency`、`delay`、`waitForScroll`、`includeHtml`、`includeText` 等）见各参数字段说明；**`bridgeTimeoutMs` 仅 Server 使用，不转发扩展**。\n\n### 局限\n不处理登录；重交互 UI 不在范围（Phase 2 `smartscrape`）。\n\n### 示例\n`scrape({ url, maxPages: 5 })`",
+      "scrape_article": "### 用途\n从单栏长文页提取 **Markdown 正文**及元数据（标题、作者、时间等）。\n\n### 何时用\n- **首选**：新闻、博客、文档长文、长商品描述等单一主阅读流。\n- 列表页仅链接：先用 **`scrape`** 或 **`scrape_urls`** 取 URL，再 **`scrape_article({ url: [...] })`**。\n\n### 返回\n**MultiUrlResult**；成功项 `data` 含 `body`（Markdown）、`title`、`quality`、`method` 等。\n\n### 兜底\n正文空或明显异常时对同一 URL 再调 **`scrape`**。\n\n### 参数\n与其余采集工具共用公共字段（`url`、`lang`、超时、`waitForScroll` 等）。**`waitForScroll.scrollSpeed`** ≠ 顶层 **`scrollSpeed`**。\n\n### 局限\n重交互 SPA 较弱；列表须先发现 URL。",
+      "scrape_emails": "### 用途\n从 HTML 扫描邮箱，去重，可选域名/关键词/条数过滤。\n\n### 何时用\n联系页、关于页、页脚等需要邮箱列表时。\n\n### 返回\n**MultiUrlResult**；成功 `data` 为 `string[]`（扩展侧提取后过滤）。\n\n### 参数\n**`filter`**：`domain`、`keyword`、`limit`（均可选）。多 URL 时扩展侧 `scrapeInterval` 最小 500ms、并发最多 3（见参数字段）。\n\n常与 **`scrape_urls`** 联用。",
+      "scrape_phones": "### 用途\n从 HTML 提取电话，带简单类型，可选过滤。\n\n### 何时用\n企业站、客服页等需要可拨号列表时。\n\n### 返回\n**MultiUrlResult**；成功 `data` 为 `{ number, type }[]`。\n\n### 参数\n**`filter`**：`type`、`areaCode`、`keyword`、`limit`（均可选）。多 URL 时 `scrapeInterval` / `concurrency` 等见公共参数字段（扩展最小间隔 500ms、并发上限 3）。",
+      "scrape_urls": "### 用途\n提取页内超链接，去重为 URL 列表，可选域名/关键词/正则/条数过滤。\n\n### 何时用\n需要链接清单，或为 **`scrape`** / **`scrape_article`** 准备 URL。\n\n### 返回\n**MultiUrlResult**；成功 `data` 为 `string[]`。\n\n### 参数\n**`filter`**：`domain`、`keyword`、`pattern`（正则）、`limit`。",
+      "scrape_images": "### 用途\n列举页内图片（src、alt、尺寸、格式等），可选过滤。\n\n### 何时用\n资源盘点、商品图、懒加载页（可配 **`delay`** / **`waitForScroll`**）。\n\n### 返回\n**MultiUrlResult**；成功 `data` 为图片对象数组（扩展走 content script，与邮箱/电话管线不同）。\n\n### 参数\n**`filter`**：`minWidth`、`minHeight`、`format`、`keyword`、`limit`。顶层 **`scrollSpeed`** ≠ `waitForScroll.scrollSpeed`。"
+    },
+    "schema": {
+      "autoLaunchBrowser": "为 true 时：桥接断开时按顺序对 Chrome、Edge（已检测到安装路径的渠道）在未运行时尝试启动。为 false 时绝不启动，未运行渠道跳过并继续下一渠道。省略：默认 true，除非环境变量 LIONSCRAPER_PING_AUTO_LAUNCH 为 0/false；显式 true 可覆盖环境变量。",
+      "postLaunchWaitMs": "启动浏览器后，等待扩展完成 WebSocket 注册的时长（毫秒），限制在 3000～60000，默认 20000。",
+      "waitForScrollGroup": "采集前滚动页面（或指定容器）以触发懒加载；与顶层 scrollSpeed 不是同一含义。",
+      "scrollSpeed": "waitForScroll 每次滚动的像素步长。",
+      "scrollInterval": "滚动步骤之间的间隔（毫秒）。",
+      "maxScrollHeight": "可选：累计最大滚动距离（像素）。",
+      "scrollContainerSelector": "可选：可滚动容器的 CSS 选择器；省略则滚动窗口。",
+      "url": "http(s) URL，string 或 string[]。单次最多 50 个（扩展强制）。Server 原样转发。",
+      "lang": "BCP 47：en-US | zh-CN。控制本次调用人读错误文案；省略为英文。中文用户请传 zh-CN（Server 不能从对话推断语言）。",
+      "delay": "页面加载后再等待的毫秒数（默认 0），用于晚渲染内容。",
+      "timeoutMs": "扩展侧单 URL 任务超时（默认 60000）。不是 MCP WebSocket 等待时长；见 bridgeTimeoutMs。",
+      "bridgeTimeoutMs": "仅 MCP Server：单次工具调用在 WebSocket 桥上的最长等待（有上限）。省略则按 URL 数、maxPages、timeoutMs、scrapeInterval 推导。转发扩展前会剥离该字段。",
+      "includeHtml": "为 true 时在该 URL 的 meta 中包含 document.documentElement.outerHTML。",
+      "includeText": "为 true 时在该 URL 的 meta 中包含 document.body.innerText。",
+      "scrapeInterval": "多 URL 时相邻任务启动间隔（毫秒）。省略用扩展默认；扩展侧最小 500ms。",
+      "concurrency": "多 URL 时并发 Tab 数。省略用扩展默认；扩展侧最多 3。",
+      "scrollSpeedTop": "可选的全局滚动速度（像素），用于整批采集调优；与 waitForScroll.scrollSpeed 不同。",
+      "maxPages": "该 URL 最大采集页数（默认 1）。>1 时扩展检测分页并合并结果。",
+      "filterEmails": "对提取后的邮箱列表做过滤。",
+      "emailDomain": "仅保留该域名邮箱（如 gmail.com）。",
+      "emailKeyword": "仅保留包含该子串的邮箱。",
+      "emailLimit": "最多返回条数。",
+      "filterPhones": "对提取后的电话列表做过滤。",
+      "phoneType": "如 mobile、landline（依扩展分类）。",
+      "phoneAreaCode": "区号或国家码过滤（如 +86、010）。",
+      "phoneKeyword": "号码中包含该数字片段则保留。",
+      "phoneLimit": "最多返回条数。",
+      "filterUrls": "对提取后的链接列表做过滤。",
+      "urlDomain": "仅保留该域名（含子域）的链接。",
+      "urlKeyword": "URL 包含该子串则保留。",
+      "urlPattern": "URL 匹配该正则字符串则保留。",
+      "urlLimit": "最多返回条数。",
+      "filterImages": "对提取后的图片列表做过滤。",
+      "imgMinWidth": "最小宽度（像素），过滤小图标。",
+      "imgMinHeight": "最小高度（像素）。",
+      "imgFormat": "如 jpg、png、webp。",
+      "imgKeyword": "alt 或 URL 包含该关键词则保留。",
+      "imgLimit": "最多返回张数。"
+    }
+  },
+  "port": {
+    "invalidEnvPort": "无效的 LIONSCRAPER_PORT「{{envValue}}」，将使用 {{fallback}}",
+    "inUseAttemptingTakeover": "端口 {{port}} 已被占用；正在尝试 LionScraper MCP Server 接管…",
+    "bindFailedAfterTakeover": "接管后仍无法在 127.0.0.1:{{port}} 绑定 WebSocket（端口仍被占用）。",
+    "nonLionScraperInUse": "端口 {{port}} 被非 LionScraper 进程占用（或探测失败）。请结束该进程，或在 MCP 客户端将 LIONSCRAPER_PORT 改为空闲端口，并与扩展桥接端口一致。",
+    "takeoverTimeoutZeroWarn": "LIONSCRAPER_TAKEOVER_TIMEOUT=0：正在强制上一实例 LionScraper MCP Server 退出",
+    "forceShutdownNoResponse": "forceShutdown 探测无响应；等待端口释放",
+    "stillInUseAfterForce": "强制关闭后端口 {{port}} 仍被占用",
+    "identityChanged": "端口 {{port}} 不再由 LionScraper MCP Server 持有",
+    "takeoverTimedOutWarn": "接管在 {{takeoverTimeoutMs}}ms 后超时；正在向上一实例发送 forceShutdown"
+  },
+  "bridgeProtocol": {
+    "mustRegisterFirst": "须先完成注册再发送其他消息",
+    "missingRegisterParams": "缺少注册参数",
+    "protocolVersionMismatch": "协议版本不匹配：期望 {{expected}}，实际 {{got}}",
+    "registerTimeoutClose": "注册超时",
+    "protocolMismatchClose": "协议版本不匹配",
+    "unknownProbeIntent": "未知的 probe 意图：{{intent}}"
+  },
+  "logMessages": {
+    "wsListening": "WebSocket 服务监听于 {{url}}",
+    "bridgeStderrHint": "[Bridge] EXTENSION_NOT_CONNECTED 排障：扩展连上后 stderr 应出现 \"Session registered\"；若仅有 \"New WebSocket connection\" 而无 registered，请查扩展 Service Worker、bridgePort 与 LIONSCRAPER_PORT、~/.lionscraper/port",
+    "wsServerStopped": "WebSocket 服务已停止",
+    "newWebSocketConnection": "新的 WebSocket 连接",
+    "registerTimeoutWarn": "在 {{ms}}ms 内未完成注册（端口 {{port}}）；对端须发送带匹配 protocolVersion 的 JSON-RPC register。请检查扩展 Service Worker 控制台及桥接端口与 LIONSCRAPER_PORT",
+    "invalidJsonFromExtension": "收到来自扩展的无效 JSON",
+    "registeredWithoutSessionState": "已注册连接收到消息但无会话状态；已忽略",
+    "wsConnectionClosed": "WebSocket 连接已关闭：{{code}} {{reason}}",
+    "expectedRegisterGotResponse": "期望注册消息，实际收到响应",
+    "unexpectedMethodBeforeRegister": "注册前收到意外方法：{{method}}",
+    "unknownRequestResponse": "收到未知请求的响应：{{id}}",
+    "unexpectedMethodFromExtension": "来自扩展的意外方法：{{method}}",
+    "mcpServerDrainingMode": "MCP Server 进入排空模式（桥接端口被请求接管）",
+    "drainingCompleteShutdown": "排空完成：正在关闭",
+    "forceShutdownViaProbe": "通过探测请求强制关闭",
+    "toolBridgeDisconnectedRetry": "工具 {{method}} BRIDGE_DISCONNECTED（第 {{attempt}}/{{maxAttempts}} 次尝试），{{delayMs}}ms 后重试",
+    "toolFailed": "工具 {{method}} 失败：",
+    "wsBridgeWillUsePort": "WebSocket 桥将使用端口：{{port}}",
+    "bannerTop": "========================================",
+    "bannerTitle": "  LionScraper MCP Server",
+    "bannerWs": "  WebSocket：{{url}}",
+    "bannerPortFile": "  端口文件：~/.lionscraper/port（Windows：%USERPROFILE%\\.lionscraper\\port）",
+    "bannerBottom": "========================================",
+    "mcpConnectedStdio": "MCP Server 已通过 stdio 连接",
+    "shuttingDownMcp": "正在关闭 LionScraper MCP Server…",
+    "errorClosingMcp": "关闭 MCP Server 时出错：",
+    "serverStopped": "服务已停止",
+    "mcpToolMetadataLocale": "MCP 工具元数据语言：{{locale}}",
+    "registeredMcpTools": "已注册 {{count}} 个 MCP 工具",
+    "errorDuringShutdown": "关闭过程中出错：",
+    "stdinClosedShuttingDown": "stdin 已关闭（MCP 客户端断开），正在关闭",
+    "uncaughtException": "未捕获异常：",
+    "unhandledRejection": "未处理的 Promise 拒绝：",
+    "failedToStartServer": "启动服务失败：",
+    "wsServerError": "WebSocket 服务错误：",
+    "wsConnectionError": "WebSocket 连接错误：",
+    "bridgeProgressIgnoredPreRegister": "已忽略 bridgeProgress 通知（扩展尚未完成注册）",
+    "bridgeProgressInvalidPayload": "已忽略 bridgeProgress：缺少或无效的 requestId",
+    "bridgeProgressNoPending": "bridgeProgress 的 requestId 无对应未完成请求：{{requestId}}",
+    "ignoredExtensionMessage": "已忽略来自扩展的无法识别的 JSON-RPC 载荷"
+  }
+}
