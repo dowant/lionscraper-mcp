@@ -13,7 +13,7 @@ MCP Client  ←─ stdio (MCP / JSON-RPC) ─→  MCP Server (Node.js)
 ```
 
 - **第一段**：Client 通过子进程 `stdio` 与本 Server 通信（`@modelcontextprotocol/sdk` 的 `StdioServerTransport`）。
-- **第二段**：Server 在本机监听 WebSocket（默认固定 `13808`，可通过 `LIONSCRAPER_PORT` 覆盖；与旧进程通过 `probe` 协调接管），扩展 **background** 主动连接 `ws://127.0.0.1:{port}`，载荷见需求文档中的桥接协议。
+- **第二段**：Server 在本机监听 WebSocket（默认固定 `13808`，可通过环境变量 `PORT` 覆盖；与旧进程通过 `probe` 协调接管），扩展 **background** 主动连接 `ws://127.0.0.1:{port}`，载荷见需求文档中的桥接协议。
 
 **重要**：Cursor 能列出 MCP Tools、调用 `scrape_*` 只说明 **第一段** 正常；**第二段**（扩展与当前 MCP 进程之间的 WebSocket + `register`）必须单独建立。插件弹窗里「能采集」通常只说明扩展业务可用，**不**等同于已连上本 Server 的桥。
 
@@ -64,17 +64,21 @@ npm run build
       "command": "node",
       "args": ["D:/path/to/mcp/packages/node/dist/index.js"],
       "env": {
-        "LIONSCRAPER_PORT": "13808",
-        "LIONSCRAPER_TAKEOVER_TIMEOUT": "120000"
+        "PORT": "13808",
+        "TIMEOUT": "120000",
+        "AUTO_PING": "1",
+        "LANG": "zh-CN"
       }
     }
   }
 }
 ```
 
-可选环境变量：`LIONSCRAPER_PORT`（桥接 WebSocket 端口，默认 `13808`）、`LIONSCRAPER_TAKEOVER_TIMEOUT`（新进程等待旧进程释放端口的毫秒数，默认 `120000`；`0` 表示立即 `forceShutdown`）。
+可选环境变量（示例中为常用默认值）：`PORT`（桥接 WebSocket 端口，默认 `13808`）、`TIMEOUT`（新进程等待旧进程释放端口的毫秒数，默认 `120000`；`0` 表示立即 `forceShutdown`）、`AUTO_PING`（`ping` 在未显式传 `autoLaunchBrowser` 时是否允许自动启动浏览器；`0` 或 `false` 表示不允许，其它值与未设置时均为允许）、`LANG`（工具列表等文案语言，如 `zh-CN`、`zh_CN.UTF-8`、`en-US`；未识别时回退英文）。
 
-扩展启动后会自动连接 MCP Server（默认 `ws://127.0.0.1:13808`，`chrome.storage` 中的 `bridgePort` 可覆盖并与 `LIONSCRAPER_PORT` 对齐），连接成功后自动发送 `register` 完成注册，无需手动配对（流程见 [docs/mcp.md](docs/mcp.md) 第 4、6、10 节）。
+`PORT`、`TIMEOUT` 为通用名：若 MCP 子进程继承了系统或其它工具的同名变量，可能误配桥接端口或接管超时。请在 MCP 配置的 `env` 中**显式**写入本服务需要的键值，勿仅依赖未受控的继承环境。
+
+扩展启动后会自动连接 MCP Server（默认 `ws://127.0.0.1:13808`，`chrome.storage` 中的 `bridgePort` 可覆盖并与 `PORT` 对齐），连接成功后自动发送 `register` 完成注册，无需手动配对（流程见 [docs/mcp.md](docs/mcp.md) 第 4、6、10 节）。
 
 ### 调试日志
 
@@ -93,7 +97,7 @@ node packages/node/dist/index.js --debug
 | 步骤 | 做法 |
 |------|------|
 | 1 | 查看 MCP Server **stderr**：应有 `WebSocket server listening on ws://127.0.0.1:PORT`；扩展连上并注册成功后应有 **`Session registered: ...`**。若出现 **`Connection did not register within ...ms`**，说明有 TCP/WebSocket 连入但未在时限内发送合法 `register`（查扩展后台与协议版本）。 |
-| 2 | **端口三线对齐**：① stderr 中的 **PORT**；② `%USERPROFILE%\.lionscraper\port`（或 `~/.lionscraper/port`）文件中的数字；③ MCP Client 配置里 **`LIONSCRAPER_PORT`**；④ 扩展选项页 **桥接端口**（`bridgePort`，留空则默认 `13808`）。四处须一致。 |
+| 2 | **端口四线对齐**：① stderr 中的监听端口；② `%USERPROFILE%\.lionscraper\port`（或 `~/.lionscraper/port`）文件中的数字；③ MCP Client 的 `env` 里 **`PORT`**（桥接端口）；④ 扩展选项页 **桥接端口**（`bridgePort`，留空则默认 `13808`）。四处须一致。 |
 | 3 | 重启 Cursor 或 MCP 后，扩展需重连；避免同时手动运行另一个 `node dist/index.js` 与 Cursor 拉起的实例（避免端口与 port 文件冲突）。 |
 | 4 | **Service Worker**：`chrome://extensions` → LionScraper → **Service Worker**（或「检查视图」）→ Console：是否连到 `ws://127.0.0.1:PORT`、是否有 `[Bridge] Registered successfully` 或注册失败日志。 |
 | 5 | 选项页 **「重新连接」** 会断开并重建 WebSocket + `register`；若仍失败，尝试 **重新加载扩展** 或重启浏览器。 |

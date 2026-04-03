@@ -23,39 +23,39 @@ describe('canBindPort', () => {
 });
 
 describe('getConfiguredPort', () => {
-  const original = process.env.LIONSCRAPER_PORT;
+  const original = process.env.PORT;
 
   afterEach(() => {
     if (original === undefined) {
-      delete process.env.LIONSCRAPER_PORT;
+      delete process.env.PORT;
     } else {
-      process.env.LIONSCRAPER_PORT = original;
+      process.env.PORT = original;
     }
   });
 
   it('returns DEFAULT_PORT when env is unset', () => {
-    delete process.env.LIONSCRAPER_PORT;
+    delete process.env.PORT;
     expect(getConfiguredPort()).toBe(DEFAULT_PORT);
   });
 
-  it('returns parsed LIONSCRAPER_PORT when set', () => {
-    process.env.LIONSCRAPER_PORT = '20000';
+  it('returns parsed PORT when set', () => {
+    process.env.PORT = '20000';
     expect(getConfiguredPort()).toBe(20_000);
   });
 });
 
 describe('acquirePort', () => {
-  const original = process.env.LIONSCRAPER_PORT;
+  const original = process.env.PORT;
 
   beforeEach(() => {
-    delete process.env.LIONSCRAPER_PORT;
+    delete process.env.PORT;
   });
 
   afterEach(() => {
     if (original === undefined) {
-      delete process.env.LIONSCRAPER_PORT;
+      delete process.env.PORT;
     } else {
-      process.env.LIONSCRAPER_PORT = original;
+      process.env.PORT = original;
     }
   });
 

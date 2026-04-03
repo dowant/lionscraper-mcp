@@ -5,7 +5,7 @@
   "type": "module",
   "main": "dist/index.js",
   "bin": {
-    "lionscraper-mcp": "dist/index.js"
+    "lionscraper": "dist/index.js"
   },
   "scripts": {
     "build": "tsc",

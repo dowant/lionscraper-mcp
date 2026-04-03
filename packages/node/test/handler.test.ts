@@ -236,7 +236,7 @@ function mockBrowserEnv(partial: Partial<BrowserEnv>): BrowserEnv {
 
 describe('ToolHandler handlePing', () => {
   afterEach(() => {
-    delete process.env.LIONSCRAPER_PING_AUTO_LAUNCH;
+    delete process.env.AUTO_PING;
     vi.useRealTimers();
   });
 
@@ -436,8 +436,8 @@ describe('ToolHandler handlePing', () => {
     });
   });
 
-  it('respects LIONSCRAPER_PING_AUTO_LAUNCH=0 when autoLaunchBrowser is omitted', async () => {
-    process.env.LIONSCRAPER_PING_AUTO_LAUNCH = '0';
+  it('respects AUTO_PING=0 when autoLaunchBrowser is omitted', async () => {
+    process.env.AUTO_PING = '0';
     const sessionRef = { info: null as { deviceId: string; browser: string; extensionVersion: string } | null };
     const launchBrowser = vi.fn();
     const quitLaunchedBrowser = vi.fn().mockResolvedValue(undefined);

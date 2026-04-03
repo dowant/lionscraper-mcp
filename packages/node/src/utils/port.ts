@@ -41,7 +41,7 @@ export interface ProbeResult {
 }
 
 function parseTakeoverTimeoutMs(): number {
-  const raw = process.env.LIONSCRAPER_TAKEOVER_TIMEOUT;
+  const raw = process.env.TIMEOUT;
   if (raw === undefined || raw === '') return 120_000;
   const v = parseInt(raw, 10);
   if (Number.isNaN(v)) return 120_000;
@@ -138,7 +138,7 @@ async function waitUntilPortFree(port: number, deadlineMs: number): Promise<bool
 
 /**
  * When the port is held by another LionScraper MCP Server: request draining / shutdown so this
- * process can bind. Uses `LIONSCRAPER_TAKEOVER_TIMEOUT` (ms, default 120000; `0` = immediate force).
+ * process can bind. Uses `TIMEOUT` (ms, default 120000; `0` = immediate force).
  */
 export async function takeOverPort(port: number): Promise<void> {
   const L = portLang();
@@ -189,7 +189,7 @@ export async function takeOverPort(port: number): Promise<void> {
 
 // --- configured port / acquire
 
-/** Default WebSocket bridge port (single fixed port). Override with `LIONSCRAPER_PORT`. */
+/** Default WebSocket bridge port (single fixed port). Override with `PORT`. */
 export const DEFAULT_PORT = 13808;
 
 function parseEnvPort(envValue: string | undefined, fallback: number): number {
@@ -203,9 +203,9 @@ function parseEnvPort(envValue: string | undefined, fallback: number): number {
   return p;
 }
 
-/** Resolved default from `process.env.LIONSCRAPER_PORT` or {@link DEFAULT_PORT}. */
+/** Resolved default from `process.env.PORT` or {@link DEFAULT_PORT}. */
 export function getConfiguredPort(): number {
-  return parseEnvPort(process.env.LIONSCRAPER_PORT, DEFAULT_PORT);
+  return parseEnvPort(process.env.PORT, DEFAULT_PORT);
 }
 
 /**
