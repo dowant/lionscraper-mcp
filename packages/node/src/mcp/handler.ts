@@ -245,9 +245,30 @@ export class ToolHandler {
         continue;
       }
 
+      const waitedRunningMs = await waitForExtensionSession(getSession, waitMs, PING_POLL_INTERVAL_MS);
+      sessionInfo = getSession();
+      if (sessionInfo) {
+        return this.formatSuccessResponse(
+          {
+            ok: true,
+            bridgeOk: true,
+            browser: sessionInfo.browser,
+            extensionVersion: sessionInfo.extensionVersion,
+            diagnostics: {
+              browserAssist: true,
+              selectedBrowser: kind,
+              launched: false,
+              waitedMs: waitedRunningMs,
+            },
+          },
+          lang,
+        );
+      }
+
       lastProbe = {
         selectedBrowser: kind,
         browserRunning: true,
+        waitedMs: waitedRunningMs,
         nextStep: 'install_or_enable_lionscraper_extension_or_check_bridge_port',
       };
     }

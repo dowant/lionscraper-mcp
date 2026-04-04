@@ -5,7 +5,7 @@
       "hint": "Portable or custom installs may not be detected. After installing the browser, install the LionScraper extension from the store links under details.extension."
     },
     "extensionNotConnected": {
-      "message": "LionScraper extension is not connected. Before the WebSocket bridge is up, `ping` may auto-launch the browser and wait for the extension to register; if it still fails, the extension may be missing or disabled, or the bridge to this MCP process is not established.",
+      "message": "LionScraper extension is not connected. `ping` may auto-launch the browser and/or poll for up to `postLaunchWaitMs` (default 20000 ms) while Chrome or Edge is already running, waiting for the extension to register over WebSocket; if it still fails after that wait, the extension may be missing or disabled, or the bridge to this MCP process is not established.",
       "hint": "To install, open the Chrome/Edge store link from **this response** in a **normal Chrome or Edge window**—not the MCP client's embedded browser, which usually **cannot** install extensions. If already installed, open Extensions and make sure LionScraper is **enabled**, then run **`ping`** again. If it still fails: compare the port shown in the **terminal where the MCP Server runs** with the number in the port file under your user folder (Windows: `%USERPROFILE%\\.lionscraper\\port`; macOS/Linux: `~/.lionscraper/port`).",
       "troubleshoot": {
         "1": "1. Use **Chrome or Edge** (not the MCP client's built-in browser) to open the store link and install LionScraper",
@@ -29,12 +29,16 @@
     },
     "mcpTool": {
       "responseTruncatedAfterLimit": "MCP tool response exceeded size limit after truncation."
+    },
+    "daemonUnreachable": {
+      "message": "Cannot reach the LionScraper daemon HTTP API. Start it with: lionscraper daemon (or npm run start in the package directory).",
+      "hint": "If you ran lionscraper stop, start the daemon again before scrape or ping."
     }
   },
   "tools": {
     "scrapeSharedPrefix": "### Call `ping` first\nNew session or unsure the extension is online: **`ping` first**, then any `scrape*`. If **`EXTENSION_NOT_CONNECTED`**: **`ping` again**, then fix WebSocket using `error.details.bridge`, MCP stderr, and `~/.lionscraper/port`, then retry.\n\n### `lang` (optional)\n`en-US` | `zh-CN`: human-readable errors for this call; omitted → English; Chinese users pass `lang: \"zh-CN\"` on each call.\n\n",
     "descriptions": {
-      "ping": "### Purpose\nVerify the LionScraper extension is connected over the local WebSocket bridge. If disconnected, tries **Chrome first**, then **Edge** (for each installed channel): detect paths and whether the process is running; when allowed, **start** the browser and wait for the extension to register. If **this ping** started the browser and registration still does not occur within **`postLaunchWaitMs`**, the Server **closes that browser** before trying the next channel. Browsers **already running** before `ping` are never terminated. Worst-case wait can be up to about **2×** `postLaunchWaitMs` when both channels need a launch.\n\n### When to call\n1. In a new session, before any `scrape*` tool.\n2. Right after any tool returns **`EXTENSION_NOT_CONNECTED`**.\n\n### Returns\n- Success: `ok`, `bridgeOk`, `browser`, `extensionVersion`; optional `diagnostics` when the server launched a browser (`launched`, `waitedMs`, `selectedBrowser`).\n- Failure: `BROWSER_NOT_INSTALLED` (no Chrome/Edge found on standard paths), or `EXTENSION_NOT_CONNECTED` with `details.browserProbe` / `details.bridge` / `details.install`.\n\n### Parameters\n- **`autoLaunchBrowser`**: optional boolean. If `false`, never spawn a browser; non-running candidates are skipped and the Server continues to the next installed channel when possible. If omitted: default **true**, unless env **`AUTO_PING`** is `0` or `false`. Explicit `true` overrides the env and allows launch.\n- **`postLaunchWaitMs`**: optional; after a launch, max time (ms) to poll for registration, clamped **3000–60000**, default **20000**.\n\n### Notes\nDoes not load pages or extract data. Portable browser installs may not be detected. Optional `lang` follows the **`lang`** section above.",
+      "ping": "### Purpose\nVerify the LionScraper extension is connected over the local WebSocket bridge. If disconnected, tries **Chrome first**, then **Edge** (each installed channel): detect paths and whether the process is running. For each channel, the Server waits up to **`postLaunchWaitMs`** for the extension to register: if the browser was **not** running and `autoLaunchBrowser` allows it, the Server **starts** it; if the browser was **already running**, it **polls without closing** that browser. If **this ping** started the browser and registration still does not occur within **`postLaunchWaitMs`**, the Server **closes only that launched instance** before trying the next channel. Worst-case wait is up to about **2×** `postLaunchWaitMs` when both channels each use a full wait (e.g. two launches, two already-running browsers, or a mix).\n\n### When to call\n1. In a new session, before any `scrape*` tool.\n2. Right after any tool returns **`EXTENSION_NOT_CONNECTED`**.\n\n### Returns\n- Success: `ok`, `bridgeOk`, `browser`, `extensionVersion`; optional `diagnostics` when the server assisted (`launched` true or false, `waitedMs`, `selectedBrowser`).\n- Failure: `BROWSER_NOT_INSTALLED` (no Chrome/Edge found on standard paths), or `EXTENSION_NOT_CONNECTED` with `details.browserProbe` / `details.bridge` / `details.install`.\n\n### Parameters\n- **`autoLaunchBrowser`**: optional boolean. If `false`, never spawn a browser; non-running candidates are skipped and the Server continues to the next installed channel when possible. If omitted: default **true**, unless env **`AUTO_PING`** is `0` or `false`. Explicit `true` overrides the env and allows launch.\n- **`postLaunchWaitMs`**: optional; max time (ms) to poll for WebSocket registration **after spawning a browser or when a browser is already running**, clamped **3000–60000**, default **20000**.\n\n### Notes\nDoes not load pages or extract data. Portable browser installs may not be detected. Optional `lang` follows the **`lang`** section above.",
       "scrape": "### Purpose\n**Structured** list/table/grid scrape: detect repeating records and fields; returns **DataGroup[]** and `dataList`. **`maxPages`>1** merges multiple pages (extension handles pagination).\n\n### When to use\n- **Prefer** for category pages, search results, product grids, tables—many rows and fields.\n- **Long article body**: use **`scrape_article`** first (`url` string or string[]); if it fails or output is unusable, fall back to **`scrape`** on the same URL(s).\n\n### Returns\n**MultiUrlResult**: per URL `ok`, `data` (DataGroup[] on success), `error`, `meta`, plus **`summary`** (counts, optional anti-crawl hints).\n- **Multiple groups**: one page may yield several valid **DataGroups**; a success item's `data` array length can be **>1**. In your answer, **acknowledge every group** (briefly—purpose or field mix); do not silently drop non-primary groups.\n- **Default: recommend the first group**: **`data[0]`** is the extension's top-ranked choice—**by default recommend it** as the main result for the user.\n- **Exception**: if the user's intent clearly matches another group (e.g. sidebar vs main list), explain briefly and **use that group**.\n\n### Key parameters\n- **`url`**: required; string or string[]; max **50** per request (extension-enforced).\n- **`maxPages`**: default 1; >1 merges pages.\n- Other fields (`timeoutMs`, `bridgeTimeoutMs`, `scrapeInterval`, `concurrency`, `delay`, `waitForScroll`, `includeHtml`, `includeText`, …) are documented on each property; **`bridgeTimeoutMs` is Server-only and is not sent to the extension**.\n\n### Limits\nNo login automation; heavy interactive UI is out of scope (Phase 2 `smartscrape`).\n\n### Example\n`scrape({ url, maxPages: 5 })`",
       "scrape_article": "### Purpose\nExtract **Markdown body** and metadata (title, author, time, …) from single-column long-form pages.\n\n### When to use\n- **Default** for news, blogs, long docs, long product copy—one main reading flow per URL.\n- Listing/home with only links: use **`scrape`** or **`scrape_urls`** for URLs, then **`scrape_article({ url: [...] })`**.\n\n### Returns\n**MultiUrlResult**; success items include `body` (Markdown), `title`, `quality`, `method`, … in `data`.\n\n### Fallback\nIf body is empty or clearly wrong, call **`scrape`** on the same URL(s).\n\n### Parameters\nSame common fields as other scrape tools (`url`, `lang`, timeouts, `waitForScroll`, …). **`waitForScroll.scrollSpeed`** ≠ top-level **`scrollSpeed`**.\n\n### Limits\nWeak on heavy SPAs; listings need URL discovery first.",
       "scrape_emails": "### Purpose\nScan HTML for email addresses, dedupe, optional domain/keyword/limit filters.\n\n### When to use\nContact/about/footer pages when the user wants an email list.\n\n### Returns\n**MultiUrlResult**; success `data` is `string[]` (filtered in the extension after extraction).\n\n### Parameters\n**`filter`**: optional `domain`, `keyword`, `limit`. For multiple URLs, extension enforces min **500ms** between starts and max **3** concurrent tabs (see property descriptions).\n\nOften chained after **`scrape_urls`**.",
@@ -44,7 +48,7 @@
     },
     "schema": {
       "autoLaunchBrowser": "If true, when the bridge is down the Server may start Chrome then Edge (each installed channel) if not running. If false, never spawn; skips non-running channels and tries the next. Omitted: true unless AUTO_PING is 0/false; explicit true overrides env.",
-      "postLaunchWaitMs": "After spawning a browser, milliseconds to wait for the extension WebSocket register (clamped 3000–60000; default 20000).",
+      "postLaunchWaitMs": "Milliseconds to poll for the extension WebSocket register after spawning a browser or while Chrome/Edge is already running (clamped 3000–60000; default 20000).",
       "waitForScrollGroup": "Scroll the page (or a container) before extraction to trigger lazy-loaded content. Distinct from top-level scrollSpeed.",
       "scrollSpeed": "Pixels to scroll per step when using waitForScroll.",
       "scrollInterval": "Milliseconds to wait between scroll steps.",
@@ -88,11 +92,19 @@
     "inUseAttemptingTakeover": "Port {{port}} is in use; attempting LionScraper MCP Server takeover...",
     "bindFailedAfterTakeover": "Failed to bind WebSocket on 127.0.0.1:{{port}} after takeover (still in use).",
     "nonLionScraperInUse": "Port {{port}} is in use by a non-LionScraper process (or probe failed). Stop that process or set PORT to a free port in your MCP client and match the extension bridge port.",
+    "stopVerifiedViaHttpHealth": "Identified LionScraper on port {{port}} via HTTP /v1/health (WebSocket probe was inconclusive).",
+    "stopRequestedHttpShutdown": "Shutdown requested via HTTP POST /v1/daemon/shutdown (WebSocket forceShutdown had no response).",
     "takeoverTimeoutZeroWarn": "TIMEOUT=0: forcing previous LionScraper MCP Server to exit",
     "forceShutdownNoResponse": "forceShutdown probe returned no response; waiting for port release",
     "stillInUseAfterForce": "Port {{port}} still in use after forced shutdown",
     "identityChanged": "Port {{port}} is no longer held by LionScraper MCP Server",
-    "takeoverTimedOutWarn": "Takeover timed out after {{takeoverTimeoutMs}}ms; sending forceShutdown to previous server"
+    "takeoverTimedOutWarn": "Takeover timed out after {{takeoverTimeoutMs}}ms; sending forceShutdown to previous server",
+    "cliDaemonNotRunning": "No LionScraper daemon on port {{port}} (already stopped).",
+    "cliDaemonStopped": "LionScraper daemon on port {{port}} stopped.",
+    "cliDaemonUnreachableStderr": "LionScraper daemon is not reachable over HTTP. Run: lionscraper daemon",
+    "cliAutoPingAfterSpawn": "Daemon was just started in the background; running ping to connect the browser extension (this may take up to ~20s)…",
+    "cliPingAfterDaemonSpawn": "Daemon was just started in the background; this ping will wait for the extension to register (may take up to ~20s)…",
+    "cliExtensionNotConnectedStderr": "The daemon is running, but the LionScraper extension has not registered on the WebSocket bridge. Enable the extension in Chrome/Edge, match its bridge port to PORT (see ~/.lionscraper/port), then run: lionscraper ping"
   },
   "bridgeProtocol": {
     "mustRegisterFirst": "Must register before sending other messages",
@@ -122,8 +134,9 @@
     "toolFailed": "Tool {{method}} failed:",
     "wsBridgeWillUsePort": "WebSocket bridge will use port: {{port}}",
     "bannerTop": "========================================",
-    "bannerTitle": "  LionScraper MCP Server",
+    "bannerTitle": "  LionScraper Bridge Daemon",
     "bannerWs": "  WebSocket: {{url}}",
+    "bannerHttpSamePort": "  HTTP control plane (same port): {{url}}",
     "bannerPortFile": "  Port file: ~/.lionscraper/port (Windows: %USERPROFILE%\\.lionscraper\\port)",
     "bannerBottom": "========================================",
     "mcpConnectedStdio": "MCP Server connected via stdio",
@@ -142,6 +155,13 @@
     "bridgeProgressIgnoredPreRegister": "bridgeProgress notification ignored (extension not registered yet)",
     "bridgeProgressInvalidPayload": "bridgeProgress ignored: missing or invalid requestId",
     "bridgeProgressNoPending": "bridgeProgress for unknown or completed requestId: {{requestId}}",
-    "ignoredExtensionMessage": "Ignoring unrecognized JSON-RPC payload from extension (no matching id/method shape)"
+    "ignoredExtensionMessage": "Ignoring unrecognized JSON-RPC payload from extension (no matching id/method shape)",
+    "daemonPortInUse": "PORT {{port}} is already in use. Set PORT to another value or stop the other process.",
+    "daemonListening": "Daemon listening: {{url}} (HTTP + WebSocket same port, v{{version}})",
+    "daemonUnreachableNoAuto": "Cannot reach daemon at {{baseUrl}}. Run: lionscraper daemon (or node …/lionscraper.js daemon). Auto-start is disabled (LIONSCRAPER_AUTO_DAEMON=0).",
+    "autoDaemonSpawning": "Starting daemon in background: {{path}}",
+    "autoDaemonSpawnFailed": "Failed to spawn daemon: {{message}}. Run manually: lionscraper daemon",
+    "autoDaemonTimeout": "Daemon did not become ready in time ({{baseUrl}}). Run: lionscraper daemon and check PORT is free.",
+    "thinMcpForwardingTo": "Thin MCP: forwarding tool calls to {{url}} (PORT, default 13808)"
   }
 }

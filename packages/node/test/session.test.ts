@@ -1,15 +1,16 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { SessionManager } from '../src/bridge/session.js';
 import { EventEmitter } from 'node:events';
+import type { WebSocket } from 'ws';
 
-function createMockWs(readyState: number = 1): any {
+function createMockWs(readyState: number = 1): WebSocket {
   const emitter = new EventEmitter();
   return Object.assign(emitter, {
     readyState,
     send: () => {},
     close: () => {},
     ping: () => {},
-  });
+  }) as unknown as WebSocket;
 }
 
 describe('SessionManager', () => {

@@ -5,15 +5,19 @@
 ## 架构概览
 
 ```
-MCP Client  ←─ stdio (MCP / JSON-RPC) ─→  MCP Server (Node.js)
-                                              ↓
-                                    WebSocket (桥接 JSON-RPC)
-                                              ↓
-                                    Extension (background)
+MCP Client  ←─ stdio (MCP) ─→  薄 MCP 子进程 (lionscraper-mcp / mcp.js)
+                                    │ HTTP http://127.0.0.1:PORT（与 WS 同端口，默认 13808）
+                                    ▼
+                          守护进程 (lionscraper daemon)
+                                    │ 同端口：HTTP + WebSocket 127.0.0.1:PORT
+                                    ▼
+                          Extension (background)
 ```
 
-- **第一段**：Client 通过子进程 `stdio` 与本 Server 通信（`@modelcontextprotocol/sdk` 的 `StdioServerTransport`）。
-- **第二段**：Server 在本机监听 WebSocket（默认固定 `13808`，可通过环境变量 `PORT` 覆盖；与旧进程通过 `probe` 协调接管），扩展 **background** 主动连接 `ws://127.0.0.1:{port}`，载荷见需求文档中的桥接协议。
+- **守护进程**：`lionscraper daemon` 在 **同一 `PORT`**（默认 `13808`）上同时提供 **HTTP 控制面**（`/v1/health`、`/v1/tools/call`）与 **WebSocket** 扩展桥；写入 `~/.lionscraper/port`。
+- **薄 MCP**：Trae/Cursor 子进程仅 `StdioServerTransport`，把 `tools/call` **转发**到 **`http://127.0.0.1:${PORT}`**（与守护进程及 MCP 子进程环境里的 **`PORT`** 一致）。
+- **终端 CLI**：`lionscraper scrape` / `ping` 同样走 HTTP，**不**与守护进程抢端口。
+- **扩展**：仍只连 `ws://127.0.0.1:{bridgePort}`，与守护进程 `PORT` 及 `bridgePort` 对齐；桥接载荷见 [docs/mcp.md](docs/mcp.md)。
 
 **重要**：Cursor 能列出 MCP Tools、调用 `scrape_*` 只说明 **第一段** 正常；**第二段**（扩展与当前 MCP 进程之间的 WebSocket + `register`）必须单独建立。插件弹窗里「能采集」通常只说明扩展业务可用，**不**等同于已连上本 Server 的桥。
 
@@ -47,26 +51,32 @@ npm install
 npm run build
 ```
 
-构建产物位于 `packages/node/dist/`。启动后：
+构建产物位于 `packages/node/dist/`。
 
-- **stdout** 仅用于 MCP 协议，请勿人工占用。
-- **stderr** 输出日志、监听端口等信息。
-- 实际监听端口会写入用户目录下的 `~/.lionscraper/port`（Windows 为 `%USERPROFILE%\.lionscraper\port`），供扩展探测连接。
+可先手动启动守护进程，也可依赖 **薄 MCP / `lionscraper scrape|ping`** 在需要时 **自动后台拉起** `lionscraper daemon`（可用环境变量 `LIONSCRAPER_AUTO_DAEMON=0` 关闭自动拉起）：
 
-### 在 Cursor 中配置 MCP
+```bash
+node packages/node/dist/lionscraper.js daemon
+# 或 npm run start（等同 daemon）
+```
 
-将 `args` 中的路径换为你本机克隆后的 **绝对路径**：
+守护进程 **stderr** 输出 WebSocket / HTTP 日志；**薄 MCP 子进程**的 **stdout** 仍为 MCP 协议专用。
+
+WebSocket 监听端口会写入 `~/.lionscraper/port`（Windows：`%USERPROFILE%\.lionscraper\port`）。
+
+### 在 Cursor / Trae 中配置 MCP（薄 stdio）
+
+将路径换为你本机 **绝对路径**。在 MCP 配置的 `env` 中设置 **`PORT`**（及 `TIMEOUT`、`LANG` 等），**自动拉起**的子进程会继承同一环境，与扩展 **桥接端口**（`bridgePort`）对齐。
 
 ```json
 {
   "mcpServers": {
     "lionscraper": {
       "command": "node",
-      "args": ["D:/path/to/mcp/packages/node/dist/index.js"],
+      "args": ["D:/path/to/mcp/packages/node/dist/mcp.js"],
       "env": {
         "PORT": "13808",
         "TIMEOUT": "120000",
-        "AUTO_PING": "1",
         "LANG": "zh-CN"
       }
     }
@@ -74,19 +84,30 @@ npm run build
 }
 ```
 
-可选环境变量（示例中为常用默认值）：`PORT`（桥接 WebSocket 端口，默认 `13808`）、`TIMEOUT`（新进程等待旧进程释放端口的毫秒数，默认 `120000`；`0` 表示立即 `forceShutdown`）、`AUTO_PING`（`ping` 在未显式传 `autoLaunchBrowser` 时是否允许自动启动浏览器；`0` 或 `false` 表示不允许，其它值与未设置时均为允许）、`LANG`（工具列表等文案语言，如 `zh-CN`、`zh_CN.UTF-8`、`en-US`；未识别时回退英文）。
+全局安装包时也可将 `command` 设为 `lionscraper-mcp`（见 `package.json` 的 `bin`）。
 
-`PORT`、`TIMEOUT` 为通用名：若 MCP 子进程继承了系统或其它工具的同名变量，可能误配桥接端口或接管超时。请在 MCP 配置的 `env` 中**显式**写入本服务需要的键值，勿仅依赖未受控的继承环境。
+**守护进程**环境变量（在运行 `lionscraper daemon` 的终端、MCP `env` 或启动脚本中设置）：`PORT`（HTTP + WebSocket **共用**，默认 `13808`）、`TIMEOUT`（端口接管等待毫秒）、`AUTO_PING`、`LANG`、`DAEMON_AUTH_TOKEN`（可选，设置后 HTTP 与 MCP 转发均需 `Authorization: Bearer …`）。
 
-扩展启动后会自动连接 MCP Server（默认 `ws://127.0.0.1:13808`，`chrome.storage` 中的 `bridgePort` 可覆盖并与 `PORT` 对齐），连接成功后自动发送 `register` 完成注册，无需手动配对（流程见 [docs/mcp.md](docs/mcp.md) 第 4、6、10 节）。
+### 终端采集（无需配置 MCP）
+
+在守护进程已运行或可自动拉起的前提下：
+
+```bash
+node packages/node/dist/lionscraper.js scrape -u https://www.example.com
+node packages/node/dist/lionscraper.js scrape --method article -u https://www.example.com
+node packages/node/dist/lionscraper.js ping
+```
+
+支持 `--api-url`、`--format json|pretty`、`-o` 输出到文件等（`lionscraper --help`）。
 
 ### 调试日志
 
 ```bash
-node packages/node/dist/index.js --debug
+node packages/node/dist/lionscraper.js daemon --debug
+node packages/node/dist/mcp.js --debug
 ```
 
-（`--debug` 会提高日志详细程度；仍只写入 stderr。）
+（`--debug` 提高 stderr 详细程度；薄 MCP 的 **stdout** 仍为协议通道。）
 
 ## 排障：`EXTENSION_NOT_CONNECTED`
 
@@ -97,8 +118,8 @@ node packages/node/dist/index.js --debug
 | 步骤 | 做法 |
 |------|------|
 | 1 | 查看 MCP Server **stderr**：应有 `WebSocket server listening on ws://127.0.0.1:PORT`；扩展连上并注册成功后应有 **`Session registered: ...`**。若出现 **`Connection did not register within ...ms`**，说明有 TCP/WebSocket 连入但未在时限内发送合法 `register`（查扩展后台与协议版本）。 |
-| 2 | **端口四线对齐**：① stderr 中的监听端口；② `%USERPROFILE%\.lionscraper\port`（或 `~/.lionscraper/port`）文件中的数字；③ MCP Client 的 `env` 里 **`PORT`**（桥接端口）；④ 扩展选项页 **桥接端口**（`bridgePort`，留空则默认 `13808`）。四处须一致。 |
-| 3 | 重启 Cursor 或 MCP 后，扩展需重连；避免同时手动运行另一个 `node dist/index.js` 与 Cursor 拉起的实例（避免端口与 port 文件冲突）。 |
+| 2 | **端口对齐**：① **守护进程** stderr 中的端口；② `~/.lionscraper/port` 中的数字；③ 扩展选项页 **桥接端口**（`bridgePort`，与 **`PORT`** 一致，默认 `13808`）；④ 薄 MCP 通过 **`http://127.0.0.1:${PORT}`** 访问守护进程（与 WS 同端口）。 |
+| 3 | 确认 **守护进程** 在跑且仅 **一个** WebSocket 监听实例；薄 MCP 可多开，勿再跑第二个 `lionscraper daemon`（避免端口与 port 文件冲突）。 |
 | 4 | **Service Worker**：`chrome://extensions` → LionScraper → **Service Worker**（或「检查视图」）→ Console：是否连到 `ws://127.0.0.1:PORT`、是否有 `[Bridge] Registered successfully` 或注册失败日志。 |
 | 5 | 选项页 **「重新连接」** 会断开并重建 WebSocket + `register`；若仍失败，尝试 **重新加载扩展** 或重启浏览器。 |
 
@@ -112,9 +133,9 @@ node packages/node/dist/index.js --debug
 
 | 手段 | 说明 |
 |------|------|
-| 日志 | `node dist/index.js --debug`，输出在 **stderr**，不占用 MCP 的 stdout。 |
-| 桥接 | 确认 stderr 中监听端口与 `Session registered`；与 `~/.lionscraper/port` 对齐。 |
-| 单进程 | 终端单独跑 Server 做实验时，尽量不要与 Cursor 再拉起一个实例同时排障（避免双端口、port 文件覆盖）。 |
+| 日志 | `lionscraper daemon --debug` 或 `mcp.js --debug`，输出在 **stderr**。 |
+| 桥接 | 守护进程 stderr 中 WebSocket 端口与 `Session registered`；与 `~/.lionscraper/port` 对齐。 |
+| 单守护 | 本机只保留一个 `lionscraper daemon`；MCP 使用薄 `mcp.js`，勿回到「stdio 进程自带桥」的旧模式。 |
 | 测试 | `npm test`（Vitest）。 |
 
 ### 浏览器扩展（代码通常在扩展仓库）
@@ -131,7 +152,7 @@ node packages/node/dist/index.js --debug
 | `npm run build` | TypeScript 编译到 `dist/` |
 | `npm run dev` | `tsc --watch` |
 | `npm test` | 运行 Vitest 单元测试 |
-| `npm run start` | 运行已构建的 `dist/index.js`（一般交给 MCP Client 拉起） |
+| `npm run start` | 运行 `dist/lionscraper.js daemon`（也可由薄 MCP / CLI 自动拉起） |
 
 ## 提供的 MCP Tools（汇总）
 
@@ -182,9 +203,9 @@ Server 使用 `@modelcontextprotocol/sdk` 的 `registerTool` 返回标准 **`Cal
 
 MCP Server 是 **独立 Node 进程**，`build` 只会更新 `packages/node/dist/`。需要让 **正在跑 MCP 的客户端重新拉起该进程** 才会加载新 `dist`：
 
-1. 确认 Cursor（或 Claude Desktop 等）里 MCP 配置指向的是你改过的目录（例如 `command` 为 `node`，`args` 为 `…/packages/node/dist/index.js`，或 `npx` 指向本地包路径）。
-2. 在客户端中 **关闭再开启该 MCP Server**（或 **完全重启 Cursor**），以结束旧进程并启动新进程。
-3. 若使用全局安装的 `lionscraper-mcp`，需重新 `npm link` / 重新安装，或把配置改为直接指向本地 `dist/index.js`，否则会一直跑旧全局包。
+1. 确认 MCP 配置指向 **`dist/mcp.js`**（或全局命令 `lionscraper-mcp`）；该入口为薄 stdio，与包 `main` 一致。守护进程可手动运行或依赖自动拉起。
+2. 在客户端中 **关闭再开启该 MCP**（或 **完全重启 Cursor**），以结束旧薄进程并加载新 `dist`。
+3. 若使用全局安装，需重新 `npm link` / 重新安装，或把 `args` 改为直接指向本地 `dist/mcp.js`，否则会一直跑旧全局包。
 
 ### 错误约定
 

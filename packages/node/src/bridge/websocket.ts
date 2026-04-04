@@ -1,3 +1,4 @@
+import type { Server as HttpServer } from 'node:http';
 import { WebSocketServer, WebSocket } from 'ws';
 import {
   PROTOCOL_VERSION,
@@ -39,7 +40,7 @@ export class BridgeServer {
     this.sessionManager = new SessionManager();
   }
 
-  /** @internal Notifies {@link LionScraperServer} after drain or force takeover; process exit is handled by the CLI entry. */
+  /** @internal Notifies {@link BridgeService} / daemon after drain or force takeover; process exit is handled by the daemon entry. */
   setShutdownHandler(handler: () => void): void {
     this.shutdownHandler = handler;
   }
@@ -51,6 +52,31 @@ export class BridgeServer {
   /** WebSocket listen port for this process; 0 before start or after stop. */
   get bridgePort(): number {
     return this.listenPort;
+  }
+
+  /**
+   * Attach the bridge to an existing HTTP server (same TCP port as HTTP control plane).
+   * Caller must call `httpServer.listen` after this.
+   */
+  attachToHttpServer(httpServer: HttpServer, port: number): void {
+    this.listenPort = port;
+    this.wss = new WebSocketServer({ server: httpServer });
+
+    this.wss.on('error', (err) => {
+      logger.error(logT(portLang(), 'wsServerError'), err);
+    });
+
+    this.wss.on('connection', (ws) => {
+      this.handleConnection(ws);
+    });
+  }
+
+  /** Called when the shared HTTP server has started listening (after `listen()`). */
+  onSharedServerListening(port: number): void {
+    const L = portLang();
+    logger.info(logT(L, 'wsListening', { url: `ws://127.0.0.1:${port}` }));
+    logger.info(logT(L, 'bridgeStderrHint'));
+    this.startHeartbeat();
   }
 
   async start(port: number): Promise<void> {
@@ -84,17 +110,18 @@ export class BridgeServer {
     }
 
     this.sessionManager.clear();
-    this.listenPort = 0;
 
     if (this.wss) {
       return new Promise((resolve) => {
         this.wss!.close(() => {
+          this.listenPort = 0;
           logger.info(logT(portLang(), 'wsServerStopped'));
           this.wss = null;
           resolve();
         });
       });
     }
+    this.listenPort = 0;
   }
 
   sendToExtension(
@@ -427,5 +454,13 @@ export class BridgeServer {
     this.draining = true;
     this.sessionManager.clear();
     this.shutdownHandler?.();
+  }
+
+  /**
+   * Loopback HTTP `POST /v1/daemon/shutdown` (after auth) — same shutdown path as WebSocket `forceShutdown` probe.
+   * Used when the local `ws` client fails to complete the probe handshake on some hosts.
+   */
+  requestShutdownFromLoopbackHttp(): void {
+    this.forceShutdownFromProbe();
   }
 }

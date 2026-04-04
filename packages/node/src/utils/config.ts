@@ -41,19 +41,3 @@ export function cleanupPortFile(): void {
     logger.warn(`Failed to clean up port file: ${portFile}`, err);
   }
 }
-
-export function readPortFile(): number | null {
-  const portFile = getPortFilePath();
-
-  try {
-    if (fs.existsSync(portFile)) {
-      const content = fs.readFileSync(portFile, 'utf-8').trim();
-      const port = parseInt(content, 10);
-      return isNaN(port) ? null : port;
-    }
-  } catch {
-    // ignore
-  }
-
-  return null;
-}

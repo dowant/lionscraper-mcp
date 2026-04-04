@@ -4,6 +4,15 @@ import { BridgeServer } from '../src/bridge/websocket.js';
 
 const TEST_PORT = 18800;
 
+/** Parsed JSON-RPC frame shape used in these integration tests. */
+interface JsonRpcTestResponse {
+  result?: unknown;
+  error?: {
+    message?: string;
+    data?: { lionscraperCode?: string };
+  };
+}
+
 describe('BridgeServer', () => {
   let server: BridgeServer;
 
@@ -24,10 +33,10 @@ describe('BridgeServer', () => {
     });
   }
 
-  function sendAndReceive(ws: WebSocket, msg: object): Promise<any> {
+  function sendAndReceive(ws: WebSocket, msg: object): Promise<JsonRpcTestResponse> {
     return new Promise((resolve) => {
       ws.once('message', (data) => {
-        resolve(JSON.parse(data.toString()));
+        resolve(JSON.parse(data.toString()) as JsonRpcTestResponse);
       });
       ws.send(JSON.stringify(msg));
     });
@@ -77,7 +86,7 @@ describe('BridgeServer', () => {
     });
 
     expect(response.error).toBeDefined();
-    expect(response.error.data.lionscraperCode).toBe('BRIDGE_VERSION_MISMATCH');
+    expect(response.error?.data?.lionscraperCode).toBe('BRIDGE_VERSION_MISMATCH');
     ws.close();
   });
 

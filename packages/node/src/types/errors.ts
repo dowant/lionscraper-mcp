@@ -40,12 +40,18 @@ export enum ConfigErrorCode {
   TEMPLATE_AMBIGUOUS = 'TEMPLATE_AMBIGUOUS',
 }
 
+/** Client ↔ daemon HTTP layer (not extension bridge). */
+export enum ClientErrorCode {
+  DAEMON_UNREACHABLE = 'DAEMON_UNREACHABLE',
+}
+
 export type ErrorCode =
   | BridgeErrorCode
   | PageErrorCode
   | ExtractErrorCode
   | SystemErrorCode
-  | ConfigErrorCode;
+  | ConfigErrorCode
+  | ClientErrorCode;
 
 export interface LionScraperError {
   code: string;
@@ -103,6 +109,9 @@ export function createExtensionNotConnectedError(
       registeredSessionCount: context.sessionCount,
     };
     details.hint = t(lang, 'extension_not_connected.hint');
+    if (context.bridgePort > 0) {
+      details.daemonReachable = true;
+    }
   }
 
   if (options?.browserProbe !== undefined) {

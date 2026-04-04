@@ -55,6 +55,14 @@ function sleep(ms: number): Promise<void> {
 const PROBE_CONNECT_TIMEOUT_MS = 3_000;
 
 /**
+ * After `error` / `close` on the probe socket, wait this long before giving up.
+ * On Windows especially, `error` (e.g. ECONNRESET) may fire before or without a final `message`
+ * even though the server already sent the JSON-RPC frame; bumping the timer on each event
+ * gives in-flight data time to be delivered.
+ */
+const PROBE_CLOSE_GRACE_MS = 400;
+
+/**
  * Sends a one-shot JSON-RPC `probe` to an existing listener on `127.0.0.1:port`.
  * Returns `null` if the connection fails or the response is invalid.
  */
@@ -67,10 +75,28 @@ export function probePort(
     const ws = new WebSocket(`ws://127.0.0.1:${port}`);
     const id = crypto.randomUUID();
     let settled = false;
+    let failTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const clearFailTimer = (): void => {
+      if (failTimer !== null) {
+        clearTimeout(failTimer);
+        failTimer = null;
+      }
+    };
+
+    const scheduleFailAfterGrace = (): void => {
+      if (settled) return;
+      clearFailTimer();
+      failTimer = setTimeout(() => {
+        failTimer = null;
+        if (!settled) finish(null);
+      }, PROBE_CLOSE_GRACE_MS);
+    };
 
     const timer = setTimeout(() => {
       if (settled) return;
       settled = true;
+      clearFailTimer();
       try {
         ws.terminate();
       } catch {
@@ -83,6 +109,7 @@ export function probePort(
       if (settled) return;
       settled = true;
       clearTimeout(timer);
+      clearFailTimer();
       try {
         ws.close();
       } catch {
@@ -109,7 +136,12 @@ export function probePort(
           result?: ProbeResult;
           error?: { message?: string };
         };
-        if (msg.id === id && msg.result && typeof msg.result.identity === 'string') {
+        if (msg.id !== id) return;
+        if (msg.error) {
+          finish(null);
+          return;
+        }
+        if (msg.result && typeof msg.result.identity === 'string') {
           finish(msg.result);
         }
       } catch {
@@ -118,13 +150,47 @@ export function probePort(
     });
 
     ws.on('error', () => {
-      finish(null);
+      scheduleFailAfterGrace();
     });
 
     ws.on('close', () => {
-      if (!settled) finish(null);
+      scheduleFailAfterGrace();
     });
   });
+}
+
+function loopbackDaemonAuthHeaders(): Record<string, string> {
+  const token = process.env.DAEMON_AUTH_TOKEN?.trim();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+async function httpHealthIsLionScraper(port: number): Promise<boolean> {
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/v1/health`, {
+      headers: loopbackDaemonAuthHeaders(),
+    });
+    if (!res.ok) return false;
+    const body = (await res.json()) as { ok?: boolean; identity?: string };
+    return body.ok === true && body.identity === 'lionscraper';
+  } catch {
+    return false;
+  }
+}
+
+async function httpPostDaemonShutdown(port: number): Promise<boolean> {
+  try {
+    const res = await fetch(`http://127.0.0.1:${port}/v1/daemon/shutdown`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...loopbackDaemonAuthHeaders(),
+      },
+      body: '{}',
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
 }
 
 async function waitUntilPortFree(port: number, deadlineMs: number): Promise<boolean> {
@@ -134,6 +200,51 @@ async function waitUntilPortFree(port: number, deadlineMs: number): Promise<bool
     await sleep(100);
   }
   return await canBindPort(port);
+}
+
+const STOP_DAEMON_WAIT_MS = 8_000;
+
+export type StopLionscraperResult = 'idle' | 'stopped';
+
+/**
+ * Stops a LionScraper daemon listening on `127.0.0.1:port` by sending a `forceShutdown` probe.
+ * @returns `idle` if nothing was listening; `stopped` after the port is released.
+ */
+export async function stopLionscraperOnPort(
+  port: number = getConfiguredPort(),
+): Promise<StopLionscraperResult> {
+  const L = portLang();
+  if (await canBindPort(port)) {
+    return 'idle';
+  }
+
+  const status = await probePort(port, 'status', PROBE_CONNECT_TIMEOUT_MS);
+  let verifiedLion = status?.identity === 'lionscraper';
+  if (!verifiedLion) {
+    verifiedLion = await httpHealthIsLionScraper(port);
+    if (verifiedLion) {
+      logger.info(portT(L, 'stopVerifiedViaHttpHealth', { port }));
+    }
+  }
+  if (!verifiedLion) {
+    throw new Error(portT(L, 'nonLionScraperInUse', { port }));
+  }
+
+  const forced = await probePort(port, 'forceShutdown', PROBE_CONNECT_TIMEOUT_MS);
+  if (!forced) {
+    const httpOk = await httpPostDaemonShutdown(port);
+    if (httpOk) {
+      logger.info(portT(L, 'stopRequestedHttpShutdown', { port }));
+    } else {
+      logger.warn(portT(L, 'forceShutdownNoResponse'));
+    }
+  }
+
+  const ok = await waitUntilPortFree(port, STOP_DAEMON_WAIT_MS);
+  if (!ok) {
+    throw new Error(portT(L, 'stillInUseAfterForce', { port }));
+  }
+  return 'stopped';
 }
 
 /**

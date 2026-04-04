@@ -24,6 +24,9 @@ function formatTimestamp(): string {
 }
 
 function formatArg(value: unknown): string {
+  if (value instanceof Error) {
+    return inspect(value, { depth: 6, breakLength: 120 });
+  }
   if (typeof value === 'object' && value !== null) {
     try {
       return JSON.stringify(value);

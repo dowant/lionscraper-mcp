@@ -270,6 +270,7 @@ describe('ToolHandler handlePing', () => {
   });
 
   it('returns EXTENSION_NOT_CONNECTED with browserProbe when browser running but no session', async () => {
+    vi.useFakeTimers();
     const sessionRef = { info: null as { deviceId: string; browser: string; extensionVersion: string } | null };
     const handler = new ToolHandler(makePingBridge(sessionRef), {
       browserEnv: mockBrowserEnv({
@@ -278,14 +279,40 @@ describe('ToolHandler handlePing', () => {
         isBrowserRunning: async () => true,
       }),
     });
-    const out = await handler.handlePing({ lang: 'en-US' });
+    const promise = handler.handlePing({ lang: 'en-US', postLaunchWaitMs: 3000 });
+    await vi.advanceTimersByTimeAsync(0);
+    await vi.advanceTimersByTimeAsync(3000);
+    const out = await promise;
     const body = JSON.parse(out.content[0].type === 'text' ? out.content[0].text : '{}');
     expect(body.ok).toBe(false);
     expect(body.error.code).toBe('EXTENSION_NOT_CONNECTED');
     expect(body.error.details.browserProbe).toMatchObject({
       selectedBrowser: 'chrome',
       browserRunning: true,
+      waitedMs: 3000,
     });
+  });
+
+  it('succeeds when browser already running and session appears during wait', async () => {
+    vi.useFakeTimers();
+    const sessionRef = { info: null as { deviceId: string; browser: string; extensionVersion: string } | null };
+    const handler = new ToolHandler(makePingBridge(sessionRef), {
+      browserEnv: mockBrowserEnv({
+        detectChromeInstall: async () => '/fake/chrome',
+        detectEdgeInstall: async () => null,
+        isBrowserRunning: async () => true,
+      }),
+    });
+    const promise = handler.handlePing({ postLaunchWaitMs: 10_000 });
+    await vi.advanceTimersByTimeAsync(0);
+    sessionRef.info = { deviceId: 'd', browser: 'chrome', extensionVersion: '2.0.0' };
+    await vi.advanceTimersByTimeAsync(400);
+    const out = await promise;
+    const body = JSON.parse(out.content[0].type === 'text' ? out.content[0].text : '{}');
+    expect(body.ok).toBe(true);
+    expect(body.diagnostics?.launched).toBe(false);
+    expect(body.diagnostics?.selectedBrowser).toBe('chrome');
+    expect(body.diagnostics?.waitedMs).toBeGreaterThanOrEqual(0);
   });
 
   it('launches browser, waits, and succeeds when session appears', async () => {
@@ -400,6 +427,8 @@ describe('ToolHandler handlePing', () => {
     const promise = handler.handlePing({ postLaunchWaitMs: 10_000 });
     await vi.advanceTimersByTimeAsync(0);
     expect(isBrowserRunning).toHaveBeenNthCalledWith(1, 'chrome');
+    await vi.advanceTimersByTimeAsync(10_000);
+    expect(isBrowserRunning).toHaveBeenNthCalledWith(2, 'edge');
     expect(launchBrowser).toHaveBeenCalledTimes(1);
     expect(launchBrowser).toHaveBeenCalledWith('/fake/edge', 'edge');
 
