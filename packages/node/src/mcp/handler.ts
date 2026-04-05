@@ -39,8 +39,6 @@ function resolveAutoLaunchBrowser(args?: Record<string, unknown>): boolean {
   if (args && Object.prototype.hasOwnProperty.call(args, 'autoLaunchBrowser')) {
     return args.autoLaunchBrowser === true;
   }
-  const v = process.env.AUTO_PING;
-  if (v === '0' || v === 'false') return false;
   return true;
 }
 

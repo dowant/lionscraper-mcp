@@ -1,13 +1,14 @@
-# LionScraper 雄狮采集器 MCP + CLI 服务
+# LionScraper 雄狮采集器 MCP + CLI + API 服务
 
 [English](./README.md)
 
 ## 这是什么？
 
-**LionScraper 雄狮采集器**是一款浏览器扩展，可以在网页里做列表、文章、链接、图片等采集。本 npm 包提供与扩展配套的**桥接能力**，有两种用法：
+**LionScraper 雄狮采集器**是一款浏览器扩展，可以在网页里做列表、文章、链接、图片等采集。本 npm 包提供与扩展配套的**桥接能力**，有三种用法：
 
 - **MCP**（`lionscraper-mcp`）：接到 **AI 软件**（例如 Cursor），在对话里让模型调用采集相关工具。
 - **CLI**（`lionscraper`）：在终端里使用 **守护进程**、**scrape**、**ping** 等，与扩展共用同一本地 HTTP/WebSocket 端口。
+- **HTTP API**：守护进程在本机提供 **JSON HTTP 控制面**（`/v1/...`），可用 **curl、代码里的 fetch、或其它 HTTP 客户端**直接调用与 MCP 相同的采集能力，无需走 AI 对话或 CLI 子命令封装。
 
 **真正的采集逻辑在扩展里完成**，本包负责连接与转发。
 
@@ -18,7 +19,8 @@
    - **Chrome**：[Chrome 网上应用店 — LionScraper](https://chromewebstore.google.com/detail/godiccfjpjdapemodajccjjjcdcccimf)
    - **Microsoft Edge**：[Edge 加载项 — LionScraper](https://microsoftedge.microsoft.com/addons/detail/llfpnjbphhfkgbgljpngbjpjpnljkijk)
 3. **Node.js**：电脑需安装 **18 或更高版本**。若尚未安装，可到 [Node.js 官网](https://nodejs.org/) 下载安装包，按提示下一步即可。
-4. **若只用 MCP**：需要支持 MCP 的 AI 软件（例如 Cursor、Trae 等）。
+4. **若使用 MCP**：需要支持 MCP 的 AI 软件（例如 Cursor、Trae 等）。
+5. **若使用 HTTP API**：与 CLI 相同，需要扩展与 **`lionscraper daemon`**（或等价进程占用桥接端口）；用 `curl` 等访问 `http://127.0.0.1:$PORT`（详见下文「HTTP API（本地 REST）」一节）。
 
 ## 安装（npm）
 
@@ -28,12 +30,12 @@
 npm install -g lionscraper
 ```
 
-安装后会得到两个命令：
+安装后仍是 **两个命令**，但集成方式包含 **MCP、CLI、HTTP API** 三种：
 
 | 命令 | 作用 |
 |------|------|
 | **`lionscraper-mcp`** | 面向 AI 软件的薄 MCP（stdio） |
-| **`lionscraper`** | 终端 CLI：`daemon`、`stop`、`scrape`、`ping` 等 |
+| **`lionscraper`** | 终端 CLI：`daemon`、`stop`、`scrape`、`ping` 等（启动的守护进程同时提供 HTTP API） |
 
 若不全局安装，仍可在 MCP 配置里用 `npx`（例如参数依次为 `-y`、`-p`、`lionscraper`、`lionscraper-mcp`，具体 JSON 以所用软件的 MCP 说明为准）。
 
@@ -43,9 +45,21 @@ npm install -g lionscraper
 
 ### 在 AI 软件里添加 MCP
 
-以下以常见 JSON 配置为例（软件界面可能不同，但含义相同）：
+以下示例假定已**全局安装** `lionscraper`（软件界面可能不同，含义一致）。MCP 里 **`env` 的值均为字符串**。
 
-**方式 A：已执行过全局安装（推荐）**
+**简单配置**（不写 `env` 时使用内置默认，**`PORT` 默认 13808**，须与扩展桥接端口一致）：
+
+```json
+{
+  "mcpServers": {
+    "lionscraper": {
+      "command": "lionscraper-mcp"
+    }
+  }
+}
+```
+
+**详细配置**（可按需删减键；空字符串表示「未设置」类默认行为，与省略该键类似）：
 
 ```json
 {
@@ -55,15 +69,20 @@ npm install -g lionscraper
       "env": {
         "PORT": "13808",
         "TIMEOUT": "120000",
-        "LANG": "zh-CN"
+        "LANG": "zh-CN",
+        "TOKEN": "",
+        "DAEMON": ""
       }
     }
   }
 }
 ```
 
-- **`PORT`**：与扩展 **桥接端口** 一致；默认 **13808**。
-- **`TIMEOUT`、`LANG`**：可按需调整；不懂可以先用上面的值。
+- **`PORT`**：**HTTP + WebSocket** 监听端口，默认 **13808**，须与扩展 **桥接端口** 一致。
+- **`TIMEOUT`**：占口接管时等待上一实例退出的毫秒数，默认 **120000**；**`0`** 表示尽快强制接管。
+- **`LANG`**：工具说明与 stderr 日志语言（如 **`zh-CN`**、**`en-US`**，或 `zh_CN.UTF-8` 等 POSIX 形式）。
+- **`TOKEN`**：与守护进程一致的 Bearer；**留空**表示请求不带 `Authorization`。
+- **`DAEMON`**：仅 **`0`** 表示禁止薄 MCP 自动后台拉起守护进程；留空或其它值与省略相同（允许自动拉起）。
 
 保存配置后，按软件要求**重启 MCP 或重启软件**，使新配置生效。
 
@@ -101,7 +120,7 @@ npm install -g lionscraper
 
 薄 MCP 进程（`lionscraper-mcp`）除 **Tools** 外，还提供 **Resources** 与 **Prompts**（MCP 标准能力）：
 
-- **Resources**：固定 URI 的 Markdown 说明，例如 `lionscraper://guide/connection`（端口与扩展对齐、`ping` 排错）、`lionscraper://guide/when-to-use-tools`（相对 WebFetch/curl/wget 何时优先用本 MCP）、`lionscraper://guide/cli`（终端 CLI）、`lionscraper://reference/tools`、`lionscraper://reference/common-params`。由客户端 **列出 / 读取资源** 注入上下文；**不经过**守护进程 HTTP，扩展未连接时也可读取。
+- **Resources**：固定 URI 的 Markdown 说明，例如 `lionscraper://guide/connection`（端口与扩展对齐、`ping` 排错）、`lionscraper://guide/when-to-use-tools`（相对 WebFetch/curl/wget 何时优先用本 MCP）、`lionscraper://guide/cli`（终端 CLI）、`lionscraper://reference/tools`、`lionscraper://reference/common-params`。由客户端 **列出 / 读取资源** 注入上下文；**不经过**守护进程 HTTP，扩展未连接时也可读取。若需说明 **本机 JSON HTTP 控制面**（`/v1/...`），见下文「HTTP API（本地 REST）」一节（**不是** MCP Resource URI）。
 - **Prompts**：工作流模板（如先 `ping` 再采集、多 URL、`scrape_article`、`prefer_lionscraper_scraping`、扩展未连接排查）。由客户端 **列出 / 获取 Prompt** 使用；具体入口因 Cursor、Trae 等软件而异。
 
 文案语言与 **`LANG`**（如 `zh-CN`）一致，与工具元数据语言相同。
@@ -110,7 +129,7 @@ npm install -g lionscraper
 
 ## CLI（终端）
 
-**`lionscraper`** 命令行与 MCP 共用同一套进程模型：**`lionscraper daemon`** 在 **`PORT`**（默认 **13808**）上同时提供 **HTTP**（CLI、薄 MCP 进程调用）与 **WebSocket**（扩展连接）。请将 **`PORT`**（及按需 **`DAEMON_AUTH_TOKEN`**）与扩展 **桥接端口**、MCP 配置对齐。适合 **脚本、自动化、不打开 AI 对话的快速采集**。
+**`lionscraper`** 命令行与 MCP 共用同一套进程模型：**`lionscraper daemon`** 在 **`PORT`**（默认 **13808**）上同时提供 **HTTP**（CLI、薄 MCP 进程调用）与 **WebSocket**（扩展连接）。请将 **`PORT`**（及按需 **`TOKEN`**）与扩展 **桥接端口**、MCP 配置对齐。适合 **脚本、自动化、不打开 AI 对话的快速采集**。
 
 CLI 通过本机 **`http://127.0.0.1:$PORT`** 访问守护进程的 HTTP 接口（默认端口 **13808**，与扩展一致）。若不指定 **`--api-url`**，执行 **`scrape`** 或 **`ping`** 时通常会**自动尝试拉起**本地守护进程（若环境允许）。
 
@@ -128,7 +147,7 @@ lionscraper scrape --method article -u https://www.example.com
 
 **`--method`** 指定守护进程调用的采集类型（默认 `scrape`）：`scrape`、`article`、`emails`、`phones`、`urls`、`images`。可多次使用 **`-u` / `--url`** 在一次命令里传入多个地址。
 
-请设置环境变量 **`PORT`**（以及按需 **`DAEMON_AUTH_TOKEN`**），使 CLI 与扩展、MCP 一致。若守护进程不在默认地址，使用 **`--api-url http://127.0.0.1:端口`**。完整开关列表以 **`lionscraper --help`** 为准。
+请设置环境变量 **`PORT`**（以及按需 **`TOKEN`**），使 CLI 与扩展、MCP 一致。若守护进程不在默认地址，使用 **`--api-url http://127.0.0.1:端口`**。完整开关列表以 **`lionscraper --help`** 为准。
 
 ### 采集参数说明与较完整示例
 
@@ -265,6 +284,90 @@ lionscraper scrape --method images \
 
 ---
 
+## HTTP API（本地 REST）
+
+**Base URL：** `http://127.0.0.1:$PORT`（默认 **13808**）。仅绑定 **127.0.0.1**。需 **扩展** 在同一端口完成桥接，且 **守护进程** 在监听（与本包其它用法同一套进程模型）。
+
+| 方法 | 路径 | 成功时 |
+|------|------|--------|
+| `GET` | `/v1/health` | `{ "ok", "identity", "bridgePort", "sessionCount" }` |
+| `POST` | `/v1/daemon/shutdown` | `{ "ok": true }` 后守护进程退出 |
+| `POST` | `/v1/tools/call` | 工具返回 JSON（见下） |
+
+其它路径 → **404** `{ "ok": false, "error": { "code": "NOT_FOUND", "message": "Not found" } }`。
+
+**鉴权：** 守护进程环境变量若设置了 **`TOKEN`**，每个请求需带 `Authorization: Bearer <TOKEN>`；未设置则不要带该头。
+
+### `POST /v1/tools/call`
+
+- **请求头：** `Content-Type: application/json`；若要走流式，再加 `Accept: application/x-ndjson`。
+- **Body：**
+
+```json
+{ "name": "<tool>", "arguments": { }, "progressToken": "<可选>" }
+```
+
+| 字段 | 含义 |
+|------|------|
+| `name` | `ping`、`scrape`、`scrape_article`、`scrape_emails`、`scrape_phones`、`scrape_urls`、`scrape_images` 之一 |
+| `arguments` | 工具参数；可无或 `{}` |
+| `progressToken` | 任意字符串或数字；与 `Accept: application/x-ndjson` 合用时，响应为 **NDJSON**（若干行 `type: "progress"`，最后一行 `type: "result"` 或 `type: "error"`） |
+
+### `arguments` 中的 JSON 字段
+
+**仅 `ping`：** 可选 `lang`（`"en-US"` \| `"zh-CN"`）、`autoLaunchBrowser`（布尔）、`postLaunchWaitMs`（数字，3000–60000）。
+
+**以下采集类工具**（`scrape`、`scrape_article`、`scrape_emails`、`scrape_phones`、`scrape_urls`、`scrape_images`）共用：
+
+| 键 | 类型 | 约束 / 说明 |
+|----|------|-------------|
+| `url` | string \| string[] | **必填** — 单个 URL 或 URL 数组 |
+| `lang` | `"en-US"` \| `"zh-CN"` | 可选 |
+| `delay` | number | 可选，≥ 0 |
+| `timeoutMs` | number | 可选，≥ 1000 |
+| `bridgeTimeoutMs` | number | 可选，≥ 1000 |
+| `includeHtml` | boolean | 可选 |
+| `includeText` | boolean | 可选 |
+| `scrapeInterval` | number | 可选 |
+| `concurrency` | number | 可选 |
+| `scrollSpeed` | number | 可选 |
+| `autoLaunchBrowser` | boolean | 可选 |
+| `postLaunchWaitMs` | number | 可选，3000–60000 |
+| `waitForScroll` | object | 可选；若提供，须含 `scrollSpeed`、`scrollInterval`；可再含 `maxScrollHeight`、`scrollContainerSelector` |
+
+**仅 `scrape`：** 可选 `maxPages`（数字，≥ 1）。
+
+**可选 `filter` 对象**（仅写在对应 `name` 下）：
+
+| `name` | `filter` 内字段 |
+|--------|-----------------|
+| `scrape_emails` | `domain`、`keyword`、`limit`（≥ 1） |
+| `scrape_phones` | `type`、`areaCode`、`keyword`、`limit`（≥ 1） |
+| `scrape_urls` | `domain`、`keyword`、`pattern`、`limit`（≥ 1） |
+| `scrape_images` | `minWidth`、`minHeight`（≥ 0）、`format`、`keyword`、`limit`（≥ 1） |
+
+未知 `name`、JSON 非法或参数未通过校验 → **400** `BAD_REQUEST`；Bearer 不对 → **401** `UNAUTHORIZED`；执行异常 → **500** `INTERNAL`。
+
+**200 正文：** `{ "content": [ { "type": "text", "text": "..." } ], "isError"?: boolean }`。
+
+### 示例（`PORT=13808`）
+
+```bash
+curl -sS "http://127.0.0.1:13808/v1/health"
+curl -sS -X POST "http://127.0.0.1:13808/v1/tools/call" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"ping","arguments":{}}'
+curl -sS -X POST "http://127.0.0.1:13808/v1/tools/call" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"scrape_article","arguments":{"url":"https://www.example.com","timeoutMs":120000}}'
+# 守护进程设置了 TOKEN 时：
+curl -sS -X POST "http://127.0.0.1:13808/v1/tools/call" \
+  -H "Content-Type: application/json" -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '{"name":"ping","arguments":{}}'
+```
+
+---
+
 ## 常见问题（白话）
 
 **问：提示扩展未连接、或采集失败？**
@@ -280,6 +383,10 @@ lionscraper scrape --method images \
 **问：CLI 提示连不上守护进程？**
 
 可在另一个终端先执行 **`lionscraper daemon`**，或检查 **`PORT`** / **`--api-url`** 是否正确。
+
+**问：想用自己的 HTTP 客户端调用采集？**
+
+保持守护进程与扩展在同一 **`PORT`**，对 **`POST /v1/tools/call`** 传入 `name` 与 `arguments`（见上文「HTTP API（本地 REST）」）。**`GET /v1/health`** 可确认该端口是否为 LionScraper。
 
 ## 许可证
 

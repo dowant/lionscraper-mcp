@@ -236,7 +236,6 @@ function mockBrowserEnv(partial: Partial<BrowserEnv>): BrowserEnv {
 
 describe('ToolHandler handlePing', () => {
   afterEach(() => {
-    delete process.env.AUTO_PING;
     vi.useRealTimers();
   });
 
@@ -465,24 +464,6 @@ describe('ToolHandler handlePing', () => {
     });
   });
 
-  it('respects AUTO_PING=0 when autoLaunchBrowser is omitted', async () => {
-    process.env.AUTO_PING = '0';
-    const sessionRef = { info: null as { deviceId: string; browser: string; extensionVersion: string } | null };
-    const launchBrowser = vi.fn();
-    const quitLaunchedBrowser = vi.fn().mockResolvedValue(undefined);
-    const handler = new ToolHandler(makePingBridge(sessionRef), {
-      browserEnv: mockBrowserEnv({
-        detectChromeInstall: async () => '/fake/chrome',
-        detectEdgeInstall: async () => null,
-        isBrowserRunning: async () => false,
-        launchBrowser,
-        quitLaunchedBrowser,
-      }),
-    });
-    await handler.handlePing({});
-    expect(launchBrowser).not.toHaveBeenCalled();
-    expect(quitLaunchedBrowser).not.toHaveBeenCalled();
-  });
 });
 
 describe('ToolHandler i18n errors', () => {

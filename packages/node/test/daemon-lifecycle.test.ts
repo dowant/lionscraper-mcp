@@ -13,7 +13,7 @@ vi.mock('node:child_process', () => ({
 describe('ensureLocalDaemonRunning', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
-    delete process.env.LIONSCRAPER_AUTO_DAEMON;
+    delete process.env.DAEMON;
     vi.clearAllMocks();
     vi.resetModules();
   });
@@ -59,8 +59,8 @@ describe('ensureLocalDaemonRunning', () => {
     expect(argv).toContain('daemon');
   });
 
-  it('does not spawn when LIONSCRAPER_AUTO_DAEMON=0', async () => {
-    process.env.LIONSCRAPER_AUTO_DAEMON = '0';
+  it('does not spawn when DAEMON=0', async () => {
+    process.env.DAEMON = '0';
     vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('down')));
     const { ensureLocalDaemonRunning } = await import('../src/client/daemon-lifecycle.js');
     await expect(ensureLocalDaemonRunning()).rejects.toThrow();

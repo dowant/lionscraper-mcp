@@ -160,7 +160,7 @@ export function probePort(
 }
 
 function loopbackDaemonAuthHeaders(): Record<string, string> {
-  const token = process.env.DAEMON_AUTH_TOKEN?.trim();
+  const token = process.env.TOKEN?.trim();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 

@@ -7,6 +7,6 @@ export function getDaemonHttpBaseUrl(): string {
 
 /** Optional shared secret; if set, HTTP requests must send `Authorization: Bearer <token>`. */
 export function getDaemonAuthToken(): string | undefined {
-  const t = process.env.DAEMON_AUTH_TOKEN?.trim();
+  const t = process.env.TOKEN?.trim();
   return t || undefined;
 }

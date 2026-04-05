@@ -1,13 +1,14 @@
-# LionScraper MCP + CLI service
+# LionScraper MCP + CLI + API service
 
 [简体中文](./README_cn.md)
 
 ## What is this?
 
-**LionScraper** is a browser extension that can collect lists, articles, links, images, and more from web pages. This npm package provides the companion **bridge** to that extension in two ways:
+**LionScraper** is a browser extension that can collect lists, articles, links, images, and more from web pages. This npm package provides the companion **bridge** to that extension in three ways:
 
 - **MCP** (`lionscraper-mcp`): connect your **AI app** (e.g. Cursor) so the model can call scraping tools in chat.
 - **CLI** (`lionscraper`): run **daemon**, **scrape**, and **ping** from a terminal over the same local HTTP/WebSocket port as the extension.
+- **HTTP API**: call the same tools over **loopback JSON HTTP** (`/v1/...`) when the daemon is running—useful for **scripts, services, or any HTTP client** without MCP or the CLI front-end.
 
 **The real scraping logic runs in the extension**; this package connects and forwards.
 
@@ -18,7 +19,8 @@
    - **Chrome**: [Chrome Web Store — LionScraper](https://chromewebstore.google.com/detail/godiccfjpjdapemodajccjjjcdcccimf)
    - **Microsoft Edge**: [Edge Add-ons — LionScraper](https://microsoftedge.microsoft.com/addons/detail/llfpnjbphhfkgbgljpngbjpjpnljkijk)
 3. **Node.js**: **Version 18 or newer** on your machine. If you do not have it yet, download an installer from the [Node.js website](https://nodejs.org/) and follow the prompts.
-4. **For MCP only**: an AI app that supports MCP (e.g. Cursor, Trae).
+4. **For MCP**: an AI app that supports MCP (e.g. Cursor, Trae).
+5. **For the HTTP API**: same browser, extension, and daemon as the CLI; use `curl`, `fetch`, or any HTTP client against `http://127.0.0.1:$PORT` (see [HTTP API (local REST)](#http-api-local-rest) below).
 
 ## Install (npm)
 
@@ -28,12 +30,12 @@ This package is published on npm as **[lionscraper](https://www.npmjs.com/packag
 npm install -g lionscraper
 ```
 
-You get two commands:
+You get **two commands**; together they support **three integration styles** (MCP, CLI, HTTP API):
 
 | Command | Role |
 |--------|------|
 | **`lionscraper-mcp`** | Thin MCP server (stdio) for AI apps |
-| **`lionscraper`** | CLI: `daemon`, `stop`, `scrape`, `ping`, … |
+| **`lionscraper`** | CLI: `daemon`, `stop`, `scrape`, `ping`, … (also runs the process that serves the HTTP API) |
 
 Without a global install, MCP can still use `npx` (e.g. `npx` with `-y`, `-p`, `lionscraper`, `lionscraper-mcp`—see your app’s MCP docs for the exact JSON).
 
@@ -43,9 +45,21 @@ Without a global install, MCP can still use `npx` (e.g. `npx` with `-y`, `-p`, `
 
 ### Add MCP in your AI app
 
-Example JSON (UIs differ):
+Examples assume a **global** `lionscraper` install (UIs differ). In MCP JSON, every **`env` value is a string**.
 
-**After global install (recommended)**
+**Minimal config** (omit `env` for built-in defaults; **`PORT` defaults to 13808** and must match the extension bridge port):
+
+```json
+{
+  "mcpServers": {
+    "lionscraper": {
+      "command": "lionscraper-mcp"
+    }
+  }
+}
+```
+
+**Full `env` example** (drop keys you do not need; empty strings behave like “unset” for most of these):
 
 ```json
 {
@@ -55,15 +69,20 @@ Example JSON (UIs differ):
       "env": {
         "PORT": "13808",
         "TIMEOUT": "120000",
-        "LANG": "zh-CN"
+        "LANG": "en-US",
+        "TOKEN": "",
+        "DAEMON": ""
       }
     }
   }
 }
 ```
 
-- **`PORT`**: Same as the extension **bridge port**; default **13808**.
-- **`TIMEOUT`, `LANG`**: Optional; the values above are fine to start.
+- **`PORT`**: **HTTP + WebSocket** listen port; default **13808**; must match the extension **bridge port**.
+- **`TIMEOUT`**: Milliseconds to wait for a previous instance to release the port before forcing takeover; default **120000**; **`0`** means force quickly.
+- **`LANG`**: Tool descriptions and stderr log language (**`en-US`**, **`zh-CN`**, or POSIX forms like `en_US.UTF-8`).
+- **`TOKEN`**: Bearer token shared with the daemon; **empty** means no `Authorization` header.
+- **`DAEMON`**: Only **`0`** disables auto-spawning `lionscraper daemon` from thin MCP; empty or other values match omitting the key (auto-start allowed).
 
 Restart MCP or the app so the config applies.
 
@@ -99,7 +118,7 @@ The server registers tools that mirror extension capabilities. Names and shapes 
 
 The thin MCP process (`lionscraper-mcp`) exposes **Resources** and **Prompts** in addition to **Tools**:
 
-- **Resources**: static Markdown at stable URIs, e.g. `lionscraper://guide/connection` (PORT alignment, `ping` troubleshooting), `lionscraper://guide/when-to-use-tools` (prefer LionScraper over WebFetch/curl/wget by scenario), `lionscraper://guide/cli` (terminal CLI), `lionscraper://reference/tools`, `lionscraper://reference/common-params`. Clients **list/read** them into context; they are served **inside the stdio process** and do **not** require the daemon HTTP path (works even if the extension is offline).
+- **Resources**: static Markdown at stable URIs, e.g. `lionscraper://guide/connection` (PORT alignment, `ping` troubleshooting), `lionscraper://guide/when-to-use-tools` (prefer LionScraper over WebFetch/curl/wget by scenario), `lionscraper://guide/cli` (terminal CLI), `lionscraper://reference/tools`, `lionscraper://reference/common-params`. Clients **list/read** them into context; they are served **inside the stdio process** and do **not** require the daemon HTTP path (works even if the extension is offline). For the **loopback HTTP control plane** (`/v1/...`), see [HTTP API (local REST)](#http-api-local-rest) below (not an MCP resource URI).
 - **Prompts**: workflow templates (e.g. ping-then-scrape, multi-URL, `scrape_article`, `prefer_lionscraper_scraping`, extension troubleshooting). Clients **list/get** prompts; UI varies by host (Cursor, Trae, …).
 
 Copy follows **`LANG`** (e.g. `zh-CN`), same as tool metadata.
@@ -108,7 +127,7 @@ Copy follows **`LANG`** (e.g. `zh-CN`), same as tool metadata.
 
 ## CLI (terminal)
 
-The **`lionscraper`** binary is the **terminal front-end** to the same stack as MCP: **`lionscraper daemon`** listens on **`PORT`** (default **13808**) for **HTTP** (used by the CLI and by the thin `lionscraper-mcp` process) and **WebSocket** (used by the extension). Set **`PORT`** (and optional **`DAEMON_AUTH_TOKEN`**) to match the extension bridge port and any MCP config. Use the CLI for **scripts, CI, or quick one-off runs** without opening an AI chat.
+The **`lionscraper`** binary is the **terminal front-end** to the same stack as MCP: **`lionscraper daemon`** listens on **`PORT`** (default **13808**) for **HTTP** (used by the CLI and by the thin `lionscraper-mcp` process) and **WebSocket** (used by the extension). Set **`PORT`** (and optional **`TOKEN`**) to match the extension bridge port and any MCP config. Use the CLI for **scripts, CI, or quick one-off runs** without opening an AI chat.
 
 The CLI talks to the **daemon HTTP API** on `http://127.0.0.1:$PORT` (default port **13808**, same as the extension). If you do **not** pass `--api-url`, a local daemon is **auto-started** when possible when you run `scrape` or `ping`.
 
@@ -126,7 +145,7 @@ lionscraper scrape --method article -u https://www.example.com
 
 **`--method`** selects which tool the daemon runs (default `scrape`): `scrape`, `article`, `emails`, `phones`, `urls`, `images`. Repeat **`-u` / `--url`** to pass several URLs in one run.
 
-Set **`PORT`** (and optional **`DAEMON_AUTH_TOKEN`**) in the environment so the CLI matches the extension and MCP. Use **`--api-url http://127.0.0.1:PORT`** if the daemon is not on the default base URL. Run **`lionscraper --help`** for every flag the binary accepts.
+Set **`PORT`** (and optional **`TOKEN`**) in the environment so the CLI matches the extension and MCP. Use **`--api-url http://127.0.0.1:PORT`** if the daemon is not on the default base URL. Run **`lionscraper --help`** for every flag the binary accepts.
 
 ### Scrape: parameters and richer examples
 
@@ -263,6 +282,90 @@ lionscraper scrape --method images \
 
 ---
 
+## HTTP API (local REST)
+
+**Base URL:** `http://127.0.0.1:$PORT` (default **13808**). Binds **127.0.0.1** only. The **extension** must be connected on that port and a **daemon** must be listening (same process model as the rest of this package).
+
+| Method | Path | Response (success) |
+|--------|------|--------------------|
+| `GET` | `/v1/health` | `{ "ok", "identity", "bridgePort", "sessionCount" }` |
+| `POST` | `/v1/daemon/shutdown` | `{ "ok": true }` then the daemon exits |
+| `POST` | `/v1/tools/call` | Tool result JSON (below) |
+
+Anything else → **404** `{ "ok": false, "error": { "code": "NOT_FOUND", "message": "Not found" } }`.
+
+**Auth:** If env **`TOKEN`** is set on the daemon, every request needs `Authorization: Bearer <TOKEN>`; otherwise omit the header.
+
+### `POST /v1/tools/call`
+
+- **Headers:** `Content-Type: application/json`. For streaming, also `Accept: application/x-ndjson`.
+- **Body:**
+
+```json
+{ "name": "<tool>", "arguments": { }, "progressToken": "<optional>" }
+```
+
+| Field | Meaning |
+|-------|---------|
+| `name` | One of: `ping`, `scrape`, `scrape_article`, `scrape_emails`, `scrape_phones`, `scrape_urls`, `scrape_images` |
+| `arguments` | Tool payload; omit or `{}` if empty |
+| `progressToken` | Any string or number; with `Accept: application/x-ndjson`, the body is **NDJSON** (lines `type: "progress"`, then a final `type: "result"` or `type: "error"`) |
+
+### `arguments` (JSON keys)
+
+**`ping` only:** optional `lang` (`"en-US"` \| `"zh-CN"`), `autoLaunchBrowser` (boolean), `postLaunchWaitMs` (number, 3000–60000).
+
+**All scrape-family tools** (`scrape`, `scrape_article`, `scrape_emails`, `scrape_phones`, `scrape_urls`, `scrape_images`) share:
+
+| Key | Type | Constraint / note |
+|-----|------|-------------------|
+| `url` | string \| string[] | **Required** — one URL or an array of URLs |
+| `lang` | `"en-US"` \| `"zh-CN"` | Optional |
+| `delay` | number | Optional, ≥ 0 |
+| `timeoutMs` | number | Optional, ≥ 1000 |
+| `bridgeTimeoutMs` | number | Optional, ≥ 1000 |
+| `includeHtml` | boolean | Optional |
+| `includeText` | boolean | Optional |
+| `scrapeInterval` | number | Optional |
+| `concurrency` | number | Optional |
+| `scrollSpeed` | number | Optional |
+| `autoLaunchBrowser` | boolean | Optional |
+| `postLaunchWaitMs` | number | Optional, 3000–60000 |
+| `waitForScroll` | object | Optional; if set, must include `scrollSpeed` and `scrollInterval`; may include `maxScrollHeight`, `scrollContainerSelector` |
+
+**Only `scrape`:** optional `maxPages` (number, ≥ 1).
+
+**Optional `filter` object** (only on the matching tool):
+
+| `name` | `filter` properties |
+|--------|---------------------|
+| `scrape_emails` | `domain`, `keyword`, `limit` (≥ 1) |
+| `scrape_phones` | `type`, `areaCode`, `keyword`, `limit` (≥ 1) |
+| `scrape_urls` | `domain`, `keyword`, `pattern`, `limit` (≥ 1) |
+| `scrape_images` | `minWidth`, `minHeight` (≥ 0), `format`, `keyword`, `limit` (≥ 1) |
+
+Unknown `name`, bad JSON, or schema violations → **400** `{ "code": "BAD_REQUEST", ... }`. Bad bearer → **401** `UNAUTHORIZED`. Tool crash → **500** `INTERNAL`.
+
+**200 body:** `{ "content": [ { "type": "text", "text": "..." } ], "isError"?: boolean }`.
+
+### Examples (`PORT=13808`)
+
+```bash
+curl -sS "http://127.0.0.1:13808/v1/health"
+curl -sS -X POST "http://127.0.0.1:13808/v1/tools/call" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"ping","arguments":{}}'
+curl -sS -X POST "http://127.0.0.1:13808/v1/tools/call" \
+  -H "Content-Type: application/json" \
+  -d '{"name":"scrape_article","arguments":{"url":"https://www.example.com","timeoutMs":120000}}'
+# With TOKEN on the daemon:
+curl -sS -X POST "http://127.0.0.1:13808/v1/tools/call" \
+  -H "Content-Type: application/json" -H "Authorization: Bearer YOUR_TOKEN" \
+  -d '{"name":"ping","arguments":{}}'
+```
+
+---
+
 ## FAQ (plain language)
 
 **Q: Extension not connected or scraping fails?**
@@ -278,6 +381,10 @@ Not necessarily. Tools only confirm **AI → MCP server**; the extension must st
 **Q: CLI says it cannot reach the daemon?**
 
 Start **`lionscraper daemon`** in another terminal, or fix **`PORT`** / **`--api-url`**.
+
+**Q: I want to drive scraping from my own HTTP client?**
+
+Keep the daemon and extension on the same **`PORT`**, then **`POST /v1/tools/call`** with `name` and `arguments` as in [HTTP API (local REST)](#http-api-local-rest). **`GET /v1/health`** checks that the listener is LionScraper.
 
 ## License
 

@@ -43,7 +43,7 @@ export interface EnsureLocalDaemonResult {
 
 /**
  * Ensures the local daemon responds on `getDaemonHttpBaseUrl()` (same `PORT` as this process).
- * If `LIONSCRAPER_AUTO_DAEMON` is `0`, only probes health.
+ * If `DAEMON` is `0`, only probes health.
  */
 export async function ensureLocalDaemonRunning(): Promise<EnsureLocalDaemonResult> {
   const baseUrl = getDaemonHttpBaseUrl();
@@ -57,7 +57,7 @@ export async function ensureLocalDaemonRunning(): Promise<EnsureLocalDaemonResul
     /* need spawn */
   }
 
-  if (process.env.LIONSCRAPER_AUTO_DAEMON === '0') {
+  if (process.env.DAEMON === '0') {
     throw new Error(logT(L, 'daemonUnreachableNoAuto', { baseUrl }));
   }
 
