@@ -43,6 +43,8 @@ export enum ConfigErrorCode {
 /** Client ↔ daemon HTTP layer (not extension bridge). */
 export enum ClientErrorCode {
   DAEMON_UNREACHABLE = 'DAEMON_UNREACHABLE',
+  /** Malformed NDJSON, wrong Content-Type for streaming, or invalid JSON body while HTTP was OK. */
+  DAEMON_INVALID_RESPONSE = 'DAEMON_INVALID_RESPONSE',
 }
 
 export type ErrorCode =

@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { buildInvocationFromArgv, parseApiUrl, parseOutputFlags } from '../src/cli/build-tool-args.js';
+import {
+  buildInvocationFromArgv,
+  parseApiUrl,
+  parseOutputFlags,
+  validateCliNumericToolArgs,
+} from '../src/cli/build-tool-args.js';
 
 describe('buildInvocationFromArgv', () => {
   it('maps scrape with single url and default method', () => {
@@ -64,5 +69,18 @@ describe('parseOutputFlags', () => {
 describe('parseApiUrl', () => {
   it('returns override', () => {
     expect(parseApiUrl(['--api-url', 'http://127.0.0.1:9999'])).toBe('http://127.0.0.1:9999');
+  });
+});
+
+describe('validateCliNumericToolArgs', () => {
+  it('returns message when delay is NaN', () => {
+    const r = buildInvocationFromArgv(['--url', 'https://a.com', '--delay', 'nope'], 'scrape');
+    const err = validateCliNumericToolArgs(r.arguments);
+    expect(err).toMatch(/delay/i);
+  });
+
+  it('returns null for valid numbers', () => {
+    const r = buildInvocationFromArgv(['--url', 'https://a.com', '--delay', '500'], 'scrape');
+    expect(validateCliNumericToolArgs(r.arguments)).toBeNull();
   });
 });

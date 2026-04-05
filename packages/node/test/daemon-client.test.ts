@@ -45,6 +45,21 @@ describe('callDaemonTool', () => {
     expect(j.error?.code).toBe(ClientErrorCode.DAEMON_UNREACHABLE);
   });
 
+  it('returns DAEMON_INVALID_RESPONSE when JSON body is invalid on HTTP 200', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        headers: new Headers({ 'content-type': 'application/json' }),
+        text: async () => 'not-json{{{',
+      }),
+    );
+    const r = await callDaemonTool('http://127.0.0.1:13808', 'ping', {});
+    expect(r.isError).toBe(true);
+    const j = JSON.parse(r.content[0]?.text ?? '{}') as { error?: { code?: string } };
+    expect(j.error?.code).toBe(ClientErrorCode.DAEMON_INVALID_RESPONSE);
+  });
+
   it('returns DAEMON_UNREACHABLE on HTTP 503', async () => {
     vi.stubGlobal(
       'fetch',

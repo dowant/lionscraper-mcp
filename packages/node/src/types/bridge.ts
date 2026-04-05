@@ -1,8 +1,6 @@
 export const PROTOCOL_VERSION = 1;
 
 export const BRIDGE_PROGRESS_METHOD = 'bridgeProgress' as const;
-/** @deprecated Extension should use {@link BRIDGE_PROGRESS_METHOD}. Server accepts both. */
-export const BRIDGE_PROGRESS_LEGACY_METHOD = 'jobProgress' as const;
 
 export type BridgeMethod =
   | 'probe'
@@ -14,8 +12,7 @@ export type BridgeMethod =
   | 'scrape_emails'
   | 'scrape_phones'
   | 'scrape_urls'
-  | 'scrape_images'
-  | 'cancelJob';
+  | 'scrape_images';
 
 export interface BridgeRequest {
   jsonrpc: '2.0';
@@ -58,9 +55,7 @@ export interface BridgeProgressParams {
   data?: Record<string, unknown>;
 }
 
-export type BridgeProgressNotificationMethod =
-  | typeof BRIDGE_PROGRESS_METHOD
-  | typeof BRIDGE_PROGRESS_LEGACY_METHOD;
+export type BridgeProgressNotificationMethod = typeof BRIDGE_PROGRESS_METHOD;
 
 export interface BridgeProgressNotification {
   jsonrpc: '2.0';
@@ -99,7 +94,7 @@ export function isBridgeProgressNotification(msg: unknown): msg is BridgeProgres
   if (msg === null || typeof msg !== 'object') return false;
   const m = msg as Record<string, unknown>;
   if (m.jsonrpc !== '2.0') return false;
-  if (m.method !== BRIDGE_PROGRESS_METHOD && m.method !== BRIDGE_PROGRESS_LEGACY_METHOD) return false;
+  if (m.method !== BRIDGE_PROGRESS_METHOD) return false;
   if ('id' in m && m.id !== undefined && m.id !== null) return false;
   return true;
 }

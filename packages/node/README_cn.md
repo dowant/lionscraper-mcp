@@ -1,6 +1,6 @@
-# LionScraper 雄狮采集器 MCP 服务
+# LionScraper 雄狮采集器 MCP + CLI 服务
 
-[English](README.md)
+[English](./README.md)
 
 ## 这是什么？
 
@@ -97,9 +97,20 @@ npm install -g lionscraper
 
 **关于参数：** 每个字段的完整 JSON 约定应以**客户端里的工具定义**和**随版本更新的权威文档**为准；在 npm 说明里逐条罗列容易过时。**请在 AI 软件中查看工具列表与描述**后再通过 MCP 调用。
 
+### MCP Resources / Prompts
+
+薄 MCP 进程（`lionscraper-mcp`）除 **Tools** 外，还提供 **Resources** 与 **Prompts**（MCP 标准能力）：
+
+- **Resources**：固定 URI 的 Markdown 说明，例如 `lionscraper://guide/connection`（端口与扩展对齐、`ping` 排错）、`lionscraper://guide/when-to-use-tools`（相对 WebFetch/curl/wget 何时优先用本 MCP）、`lionscraper://guide/cli`（终端 CLI）、`lionscraper://reference/tools`、`lionscraper://reference/common-params`。由客户端 **列出 / 读取资源** 注入上下文；**不经过**守护进程 HTTP，扩展未连接时也可读取。
+- **Prompts**：工作流模板（如先 `ping` 再采集、多 URL、`scrape_article`、`prefer_lionscraper_scraping`、扩展未连接排查）。由客户端 **列出 / 获取 Prompt** 使用；具体入口因 Cursor、Trae 等软件而异。
+
+文案语言与 **`LANG`**（如 `zh-CN`）一致，与工具元数据语言相同。
+
 ---
 
 ## CLI（终端）
+
+**`lionscraper`** 命令行与 MCP 共用同一套进程模型：**`lionscraper daemon`** 在 **`PORT`**（默认 **13808**）上同时提供 **HTTP**（CLI、薄 MCP 进程调用）与 **WebSocket**（扩展连接）。请将 **`PORT`**（及按需 **`DAEMON_AUTH_TOKEN`**）与扩展 **桥接端口**、MCP 配置对齐。适合 **脚本、自动化、不打开 AI 对话的快速采集**。
 
 CLI 通过本机 **`http://127.0.0.1:$PORT`** 访问守护进程的 HTTP 接口（默认端口 **13808**，与扩展一致）。若不指定 **`--api-url`**，执行 **`scrape`** 或 **`ping`** 时通常会**自动尝试拉起**本地守护进程（若环境允许）。
 

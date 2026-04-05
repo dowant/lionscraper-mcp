@@ -52,16 +52,73 @@ function daemonUnreachableCallResult(cause?: string): DaemonCallResult {
   };
 }
 
+function invalidDaemonResponseResult(message: string, details?: Record<string, unknown>): DaemonCallResult {
+  return {
+    content: [
+      {
+        type: 'text',
+        text: JSON.stringify({
+          ok: false,
+          error: {
+            code: ClientErrorCode.DAEMON_INVALID_RESPONSE,
+            message,
+            ...(details !== undefined && Object.keys(details).length > 0 ? { details } : {}),
+          },
+        }),
+      },
+    ],
+    isError: true,
+  };
+}
+
+async function processNdjsonLineArray(
+  lineChunks: string[],
+  onProgress: (notification: ServerNotification) => Promise<void>,
+): Promise<DaemonCallResult> {
+  let final: DaemonCallResult | null = null;
+
+  for (const line of lineChunks) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    let obj: {
+      type: string;
+      notification?: ServerNotification;
+      content?: DaemonToolContent[];
+      isError?: boolean;
+      error?: { message?: string };
+    };
+    try {
+      obj = JSON.parse(trimmed) as typeof obj;
+    } catch {
+      return invalidDaemonResponseResult('Invalid JSON line in daemon NDJSON stream', {
+        linePreview: trimmed.slice(0, 120),
+      });
+    }
+    if (obj.type === 'progress' && obj.notification) {
+      await onProgress(obj.notification);
+    } else if (obj.type === 'result' && Array.isArray(obj.content)) {
+      final = { content: obj.content, isError: obj.isError };
+    } else if (obj.type === 'error') {
+      return invalidDaemonResponseResult(obj.error?.message ?? 'Daemon tool error line in NDJSON stream');
+    }
+  }
+
+  if (!final) {
+    return invalidDaemonResponseResult('No result line in daemon NDJSON stream (incomplete response)');
+  }
+  return final;
+}
+
 async function readNdjsonStream(
   res: Response,
   onProgress: (notification: ServerNotification) => Promise<void>,
 ): Promise<DaemonCallResult> {
   if (!res.body) {
-    throw new Error('Empty response body from daemon');
+    return invalidDaemonResponseResult('Empty response body from daemon (streaming)');
   }
   const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
   let buffer = '';
-  let final: DaemonCallResult | null = null;
+  const completeLines: string[] = [];
 
   while (true) {
     const { done, value } = await reader.read();
@@ -70,34 +127,43 @@ async function readNdjsonStream(
     const lines = buffer.split('\n');
     buffer = lines.pop() ?? '';
     for (const line of lines) {
-      const trimmed = line.trim();
-      if (!trimmed) continue;
-      const obj = JSON.parse(trimmed) as {
-        type: string;
-        notification?: ServerNotification;
-        content?: DaemonToolContent[];
-        isError?: boolean;
-        error?: { message?: string };
-      };
-      if (obj.type === 'progress' && obj.notification) {
-        await onProgress(obj.notification);
-      } else if (obj.type === 'result' && Array.isArray(obj.content)) {
-        final = { content: obj.content, isError: obj.isError };
-      } else if (obj.type === 'error') {
-        throw new Error(obj.error?.message ?? 'Daemon tool error');
-      }
+      completeLines.push(line);
     }
   }
-
-  if (!final) {
-    throw new Error('No result from daemon (incomplete NDJSON stream)');
+  if (buffer.trim()) {
+    completeLines.push(buffer);
   }
-  return final;
+
+  return processNdjsonLineArray(completeLines, onProgress);
+}
+
+/** When Content-Type is not ndjson but body may still be NDJSON lines (misconfigured proxy, etc.). */
+async function tryReadNdjsonFromTextBody(
+  text: string,
+  onProgress: (notification: ServerNotification) => Promise<void>,
+): Promise<DaemonCallResult | null> {
+  const rawLines = text.split('\n').filter((l) => l.trim());
+  if (rawLines.length === 0) return null;
+  let looksNdjson = false;
+  for (const l of rawLines) {
+    try {
+      const o = JSON.parse(l) as { type?: string };
+      if (o.type === 'progress' || o.type === 'result' || o.type === 'error') {
+        looksNdjson = true;
+        break;
+      }
+    } catch {
+      /* ignore */
+    }
+  }
+  if (!looksNdjson) return null;
+  return processNdjsonLineArray(rawLines, onProgress);
 }
 
 /**
  * POST /v1/tools/call on the LionScraper daemon HTTP control plane.
- * Network failures and malformed responses are returned as {@link ClientErrorCode.DAEMON_UNREACHABLE} (not thrown).
+ * Network failures are returned as {@link ClientErrorCode.DAEMON_UNREACHABLE} (not thrown).
+ * Malformed streaming or JSON bodies use {@link ClientErrorCode.DAEMON_INVALID_RESPONSE}.
  */
 export async function callDaemonTool(
   baseUrl: string,
@@ -145,9 +211,20 @@ async function callDaemonToolUnsafe(
   });
 
   if (useStream && res.ok) {
-    const ct = res.headers.get('content-type') ?? '';
+    const ct = (res.headers.get('content-type') ?? '').toLowerCase();
     if (ct.includes('ndjson')) {
       return readNdjsonStream(res, options.onProgress!);
+    }
+    const text = await res.text();
+    const fromNdjson = await tryReadNdjsonFromTextBody(text, options.onProgress!);
+    if (fromNdjson) return fromNdjson;
+    try {
+      return JSON.parse(text) as DaemonCallResult;
+    } catch {
+      return invalidDaemonResponseResult(
+        'Expected application/x-ndjson from daemon for streaming tool call, but body was not valid NDJSON or JSON',
+        { contentType: res.headers.get('content-type') ?? '', snippet: text.slice(0, 200) },
+      );
     }
   }
 
@@ -174,7 +251,9 @@ async function callDaemonToolUnsafe(
   try {
     return JSON.parse(text) as DaemonCallResult;
   } catch {
-    throw new Error(`Invalid JSON from daemon: ${text.slice(0, 200)}`);
+    return invalidDaemonResponseResult('Invalid JSON from daemon (non-streaming response)', {
+      snippet: text.slice(0, 200),
+    });
   }
 }
 

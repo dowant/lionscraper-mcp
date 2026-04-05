@@ -1,4 +1,4 @@
-# LionScraper 雄狮采集器 MCP 服务
+# LionScraper 雄狮采集器 MCP + CLI 服务
 
 ## 这是什么？
 
@@ -23,9 +23,28 @@
 npm install -g lionscraper
 ```
 
-安装成功后，系统里会多出一个用于连接 AI 的命令：**`lionscraper-mcp`**（一般无需记住路径，终端能直接调用即可）。
+安装成功后，系统里会多出两个常用命令：**`lionscraper-mcp`**（给 AI 软件连 MCP 用）和 **`lionscraper`**（终端 CLI）。二者都依赖同一套本地守护进程与扩展桥接，**`PORT`**（默认 **13808**）须与扩展里的**桥接端口**一致。
 
 若你**不想**全局安装，也可以在 AI 软件的 MCP 配置里用 `npx` 临时拉取并运行（需已安装 Node.js）。示例思路：把启动命令设为 `npx`，参数依次为 `-y`、`-p`、`lionscraper`、`lionscraper-mcp`（具体 JSON 格式见你所用软件的 MCP 配置说明）。
+
+## CLI（终端）
+
+在已全局安装的前提下，可在终端使用 **`lionscraper`** 做脚本化采集或与 MCP **并行**使用（共用 **`lionscraper daemon`** 与 **`PORT`**）：
+
+- **`lionscraper daemon`**：常驻运行，在同一端口上提供 HTTP（CLI / 薄 MCP 调用）与 WebSocket（扩展连接）。
+- **`lionscraper stop`**：停止当前配置端口上的守护进程。
+- **`lionscraper ping`**：检查扩展是否已在桥上注册（不经过 MCP 对话）。
+- **`lionscraper scrape`**：发起采集；可用 **`--method`** 选择列表/正文/邮箱/电话/链接/图片等模式，与 MCP 工具能力对应。
+
+示例：
+
+```bash
+lionscraper daemon
+lionscraper ping
+lionscraper scrape -u https://www.example.com
+```
+
+更完整的参数说明、多 URL、分页与过滤等，见本仓库 [packages/node/README_cn.md](packages/node/README_cn.md)；英文与 npm 展示页一致，见 [npm 上的 lionscraper 包](https://www.npmjs.com/package/lionscraper)。
 
 ## 在 AI 软件里添加 MCP
 

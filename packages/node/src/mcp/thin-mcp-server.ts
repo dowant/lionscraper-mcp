@@ -3,6 +3,8 @@ import { callDaemonTool } from '../client/daemon-client.js';
 import { ensureLocalDaemonRunning } from '../client/daemon-lifecycle.js';
 import { getDaemonAuthToken, getDaemonHttpBaseUrl } from '../utils/daemon-config.js';
 import { ClientErrorCode } from '../types/errors.js';
+import { registerThinMcpPrompts } from './mcp-prompts.js';
+import { getThinMcpServerInstructions, registerThinMcpResources } from './mcp-resources.js';
 import { buildToolDefinitions } from './tools.js';
 import { getToolMetadataLocale, logT, portLang } from '../i18n/lang.js';
 import { logger } from '../utils/logger.js';
@@ -20,6 +22,7 @@ function getProgressToken(extra: McpToolHandlerExtra): string | number | undefin
  * MCP over stdio that forwards tool calls to a running `lionscraper daemon` via loopback HTTP.
  */
 export function createThinMcpServer(): McpServer {
+  const locale = getToolMetadataLocale();
   const mcpServer = new McpServer(
     {
       name: 'lionscraper',
@@ -29,10 +32,9 @@ export function createThinMcpServer(): McpServer {
       capabilities: {
         tools: {},
       },
+      instructions: getThinMcpServerInstructions(locale),
     },
   );
-
-  const locale = getToolMetadataLocale();
   const toolDefinitions = buildToolDefinitions(locale);
   const L = portLang();
   logger.info(logT(L, 'mcpToolMetadataLocale', { locale }));
@@ -123,6 +125,9 @@ export function createThinMcpServer(): McpServer {
         forward(tool.name as BridgeMethod, args, extra),
     );
   }
+
+  registerThinMcpResources(mcpServer, locale);
+  registerThinMcpPrompts(mcpServer, locale);
 
   logger.info(logT(portLang(), 'registeredMcpTools', { count: scrapingTools.length + 1 }));
   logger.info(logT(portLang(), 'thinMcpForwardingTo', { url: baseUrl }));

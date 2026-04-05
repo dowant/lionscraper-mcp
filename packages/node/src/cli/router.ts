@@ -5,7 +5,12 @@ import { callDaemonTool, daemonHealth } from '../client/daemon-client.js';
 import { ensureLocalDaemonRunning } from '../client/daemon-lifecycle.js';
 import { getDaemonAuthToken, getDaemonHttpBaseUrl } from '../utils/daemon-config.js';
 import { getConfiguredPort, stopLionscraperOnPort } from '../utils/port.js';
-import { buildInvocationFromArgv, parseApiUrl, parseOutputFlags } from './build-tool-args.js';
+import {
+  buildInvocationFromArgv,
+  parseApiUrl,
+  parseOutputFlags,
+  validateCliNumericToolArgs,
+} from './build-tool-args.js';
 import { PACKAGE_VERSION } from '../version.js';
 import { setLogLevel } from '../utils/logger.js';
 import { BridgeErrorCode, ClientErrorCode } from '../types/errors.js';
@@ -62,6 +67,13 @@ async function runToolCli(subcmdArgs: string[], mode: 'scrape' | 'ping'): Promis
 
   const { name, arguments: toolArgs } = buildInvocationFromArgv(subcmdArgs, mode);
   const outOpts = parseOutputFlags(subcmdArgs);
+
+  const numericErr = validateCliNumericToolArgs(toolArgs);
+  if (numericErr) {
+    process.stderr.write(`Error: ${numericErr}\n`);
+    process.exit(1);
+    return;
+  }
 
   if (mode === 'scrape' && toolArgs.url === undefined) {
     process.stderr.write('Error: missing --url (-u)\n');

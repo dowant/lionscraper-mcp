@@ -220,6 +220,50 @@ export function buildInvocationFromArgv(
   return { name: bridgeName, arguments: out };
 }
 
+function checkFiniteNumber(label: string, v: unknown): string | null {
+  if (v === undefined) return null;
+  if (typeof v !== 'number' || !Number.isFinite(v)) {
+    return `Invalid number for ${label} (use a finite number, e.g. --delay 1000)`;
+  }
+  return null;
+}
+
+/**
+ * Reject NaN/Infinity from CLI `Number(argv)` parsing before sending to the daemon.
+ */
+export function validateCliNumericToolArgs(args: Record<string, unknown>): string | null {
+  for (const k of [
+    'delay',
+    'timeoutMs',
+    'bridgeTimeoutMs',
+    'maxPages',
+    'scrapeInterval',
+    'concurrency',
+    'scrollSpeed',
+    'postLaunchWaitMs',
+  ] as const) {
+    const err = checkFiniteNumber(k, args[k]);
+    if (err) return err;
+  }
+  const ws = args.waitForScroll;
+  if (ws && typeof ws === 'object' && ws !== null) {
+    const o = ws as Record<string, unknown>;
+    for (const k of ['scrollSpeed', 'scrollInterval', 'maxScrollHeight'] as const) {
+      const err = checkFiniteNumber(`waitForScroll.${k}`, o[k]);
+      if (err) return err;
+    }
+  }
+  const f = args.filter;
+  if (f && typeof f === 'object' && f !== null) {
+    const o = f as Record<string, unknown>;
+    for (const k of ['limit', 'minWidth', 'minHeight'] as const) {
+      const err = checkFiniteNumber(`filter.${k}`, o[k]);
+      if (err) return err;
+    }
+  }
+  return null;
+}
+
 export interface OutputOptions {
   format: 'json' | 'pretty';
   raw: boolean;

@@ -1,6 +1,6 @@
-# LionScraper MCP service
+# LionScraper MCP + CLI service
 
-[简体中文](README_cn.md)
+[简体中文](./README_cn.md)
 
 ## What is this?
 
@@ -95,9 +95,20 @@ The server registers tools that mirror extension capabilities. Names and shapes 
 
 **Parameters:** A full JSON schema for every field belongs in the tool definitions your client displays and in release-accurate docs; duplicating it here goes stale quickly. Use the **tool list / descriptions in the AI app** when calling MCP.
 
+### MCP Resources / Prompts
+
+The thin MCP process (`lionscraper-mcp`) exposes **Resources** and **Prompts** in addition to **Tools**:
+
+- **Resources**: static Markdown at stable URIs, e.g. `lionscraper://guide/connection` (PORT alignment, `ping` troubleshooting), `lionscraper://guide/when-to-use-tools` (prefer LionScraper over WebFetch/curl/wget by scenario), `lionscraper://guide/cli` (terminal CLI), `lionscraper://reference/tools`, `lionscraper://reference/common-params`. Clients **list/read** them into context; they are served **inside the stdio process** and do **not** require the daemon HTTP path (works even if the extension is offline).
+- **Prompts**: workflow templates (e.g. ping-then-scrape, multi-URL, `scrape_article`, `prefer_lionscraper_scraping`, extension troubleshooting). Clients **list/get** prompts; UI varies by host (Cursor, Trae, …).
+
+Copy follows **`LANG`** (e.g. `zh-CN`), same as tool metadata.
+
 ---
 
 ## CLI (terminal)
+
+The **`lionscraper`** binary is the **terminal front-end** to the same stack as MCP: **`lionscraper daemon`** listens on **`PORT`** (default **13808**) for **HTTP** (used by the CLI and by the thin `lionscraper-mcp` process) and **WebSocket** (used by the extension). Set **`PORT`** (and optional **`DAEMON_AUTH_TOKEN`**) to match the extension bridge port and any MCP config. Use the CLI for **scripts, CI, or quick one-off runs** without opening an AI chat.
 
 The CLI talks to the **daemon HTTP API** on `http://127.0.0.1:$PORT` (default port **13808**, same as the extension). If you do **not** pass `--api-url`, a local daemon is **auto-started** when possible when you run `scrape` or `ping`.
 

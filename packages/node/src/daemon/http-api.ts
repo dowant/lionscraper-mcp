@@ -4,6 +4,8 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { BridgeService } from '../core/bridge-service.js';
 import type { BridgeMethod } from '../types/bridge.js';
 import type { McpToolHandlerExtra } from '../mcp/handler.js';
+import { getToolMetadataLocale } from '../i18n/lang.js';
+import { validateToolInput } from '../mcp/validate-tool-input.js';
 import { getDaemonAuthToken } from '../utils/daemon-config.js';
 import { logger } from '../utils/logger.js';
 
@@ -133,7 +135,13 @@ async function handleToolsCall(
     return;
   }
 
-  const args = body.arguments && typeof body.arguments === 'object' ? body.arguments : {};
+  const rawArgs = body.arguments && typeof body.arguments === 'object' ? body.arguments : {};
+  const validationError = validateToolInput(name, rawArgs as Record<string, unknown>, getToolMetadataLocale());
+  if (validationError) {
+    badRequest(res, `Invalid arguments: ${validationError}`);
+    return;
+  }
+  const args = rawArgs as Record<string, unknown>;
   const ac = new AbortController();
   const signal = ac.signal;
   req.on('close', () => ac.abort());
