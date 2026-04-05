@@ -1,8 +1,13 @@
 {
-  "name": "@dowant/lionscraper",
-  "version": "1.0.0",
+  "name": "lionscraper",
+  "version": "1.0.2",
   "description": "LionScraper bridge daemon, thin MCP stdio, and CLI — local HTTP + WebSocket to Chrome extension",
   "type": "module",
+  "files": [
+    "dist",
+    "README.md",
+    "README_cn.md"
+  ],
   "main": "dist/mcp.js",
   "bin": {
     "lionscraper": "dist/lionscraper.js",
@@ -18,9 +23,11 @@
     "test:watch": "vitest"
   },
   "keywords": [
-    "mcp",
     "lionscraper",
+    "scrape",
     "web-scraping",
+    "mcp",    
+    "cli",
     "chrome-extension"
   ],
   "license": "MIT",
