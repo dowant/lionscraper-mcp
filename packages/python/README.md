@@ -1,5 +1,7 @@
 # LionScraper MCP + CLI + API service (Python)
 
+<!-- mcp-name: io.github.dowant/lionscraper-python -->
+
 [简体中文](./README_cn.md)
 
 ## What is this?

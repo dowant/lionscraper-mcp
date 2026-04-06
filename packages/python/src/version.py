@@ -3,4 +3,4 @@ try:
 
     PACKAGE_VERSION = version("lionscraper")
 except Exception:  # pragma: no cover
-    PACKAGE_VERSION = "1.0.2"
+    PACKAGE_VERSION = "1.0.3"

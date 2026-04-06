@@ -115,6 +115,23 @@ lionscraper scrape -u https://www.example.com
 
 不一定。能看到工具只说明 **AI 到本服务**这一段通了；扩展还必须连上同一端口并完成注册。
 
+## MCP Registry 与第三方目录收录
+
+本仓库在 **官方 MCP Registry** 上按双包登记（元数据文件名均为 `server.json`）：
+
+| 目录 | Registry 名称 | 说明 |
+|------|----------------|------|
+| [`packages/node/server.json`](packages/node/server.json) | `io.github.dowant/lionscraper-node` | 对应 npm 包 [`lionscraper`](https://www.npmjs.com/package/lionscraper)，`package.json` 内含 `mcpName` 校验字段 |
+| [`packages/python/server.json`](packages/python/server.json) | `io.github.dowant/lionscraper-python` | 对应 PyPI 包 [`lionscraper`](https://pypi.org/project/lionscraper/)，英文 `README.md` 内含 PyPI 描述所需的 `mcp-name` 注释 |
+
+**发布到 Registry 的步骤概要**（需本机安装官方 CLI，见 [Quickstart](https://modelcontextprotocol.io/registry/quickstart)）：
+
+1. 将 **npm / PyPI** 发布到与各自 `server.json` 中 **`version`** 一致的版本（当前示例为 **1.0.3**）。
+2. 在仓库根下进入 **`packages/node`**，执行 `mcp-publisher login github`（只需一次），再执行 `mcp-publisher publish`。
+3. 再进入 **`packages/python`**，同样执行 `mcp-publisher publish`（登录可沿用）。
+
+**第三方目录**无统一入口，常见做法包括：在 [Glama](https://glama.ai/mcp/servers) 使用 **Add Server** 按站点流程提交；[Smithery](https://smithery.ai/docs/build/publish) 主要面向 **公网 HTTPS + Streamable HTTP**，与本仓库以 **stdio + npm/pip 安装**为主的形态不同，需另备托管方案后再考虑。
+
 ## 许可证
 
 MIT（与 npm 包 [lionscraper](https://www.npmjs.com/package/lionscraper) 声明一致）。
