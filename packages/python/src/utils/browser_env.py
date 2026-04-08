@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import os
-import platform
 import re
 import subprocess
 import sys
 from pathlib import Path
 from typing import Literal, Protocol
+
+from lionscraper.constants.extension_store import EXTENSION_STORE_URL_CHROME, EXTENSION_STORE_URL_EDGE
 
 BrowserKind = Literal["chrome", "edge"]
 
@@ -177,15 +178,39 @@ async def is_browser_running_impl(kind: BrowserKind) -> bool:
     return await linux_pgrep_pattern("msedge") or await linux_pgrep_pattern("microsoft-edge")
 
 
-def launch_browser_impl(executable_path: str, _kind: BrowserKind) -> int | None:
+def _popen_browser_kwargs() -> dict:
     kwargs: dict = {"stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL, "stdin": subprocess.DEVNULL}
     if sys.platform == "win32":
         kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW | getattr(subprocess, "DETACHED_PROCESS", 0)
+    return kwargs
+
+
+def launch_browser_impl(executable_path: str, _kind: BrowserKind) -> int | None:
     try:
-        proc = subprocess.Popen([executable_path], **kwargs)  # noqa: S603
+        proc = subprocess.Popen([executable_path], **_popen_browser_kwargs())  # noqa: S603
         return proc.pid or None
     except OSError:
         return None
+
+
+def open_browser_url_impl(executable_path: str, url: str) -> bool:
+    try:
+        proc = subprocess.Popen([executable_path, url], **_popen_browser_kwargs())  # noqa: S603
+        return proc.pid is not None
+    except OSError:
+        return False
+
+
+async def try_open_extension_store_install_page(
+    browser_env: BrowserEnv,
+) -> dict[str, str] | None:
+    chrome_path = await browser_env.detect_chrome_install()
+    if chrome_path and open_browser_url_impl(chrome_path, EXTENSION_STORE_URL_CHROME):
+        return {"browser": "chrome", "url": EXTENSION_STORE_URL_CHROME}
+    edge_path = await browser_env.detect_edge_install()
+    if edge_path and open_browser_url_impl(edge_path, EXTENSION_STORE_URL_EDGE):
+        return {"browser": "edge", "url": EXTENSION_STORE_URL_EDGE}
+    return None
 
 
 async def quit_launched_browser_impl(pid: int) -> None:

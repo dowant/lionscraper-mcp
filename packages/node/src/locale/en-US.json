@@ -7,6 +7,7 @@
     "extensionNotConnected": {
       "message": "LionScraper extension is not connected. `ping` may auto-launch the browser and/or poll for up to `postLaunchWaitMs` (default 20000 ms) while Chrome or Edge is already running, waiting for the extension to register over WebSocket; if it still fails after that wait, the extension may be missing or disabled, or the bridge to this MCP process is not established.",
       "hint": "To install, open the Chrome/Edge store link from **this response** in a **normal Chrome or Edge window**—not the MCP client's embedded browser, which usually **cannot** install extensions. If already installed, open Extensions and make sure LionScraper is **enabled**, then run **`ping`** again. If it still fails: compare the port shown in the **terminal where the MCP Server runs** with the number in the port file under your user folder (Windows: `%USERPROFILE%\\.lionscraper\\port`; macOS/Linux: `~/.lionscraper/port`).",
+      "storeOpenedHint": "This server also tried to open the extension store in {{browser}}.",
       "troubleshoot": {
         "1": "1. Use **Chrome or Edge** (not the MCP client's built-in browser) to open the store link and install LionScraper",
         "2": "2. In the browser's Extensions page, confirm LionScraper is **on and not disabled**",
@@ -104,7 +105,8 @@
     "cliDaemonUnreachableStderr": "LionScraper daemon is not reachable over HTTP. Run: lionscraper daemon",
     "cliAutoPingAfterSpawn": "Daemon was just started in the background; running ping to connect the browser extension (this may take up to ~20s)…",
     "cliPingAfterDaemonSpawn": "Daemon was just started in the background; this ping will wait for the extension to register (may take up to ~20s)…",
-    "cliExtensionNotConnectedStderr": "The daemon is running, but the LionScraper extension has not registered on the WebSocket bridge. Enable the extension in Chrome/Edge, match its bridge port to PORT (see ~/.lionscraper/port), then run: lionscraper ping"
+    "cliExtensionNotConnectedStderr": "The daemon is running, but the LionScraper extension has not registered on the WebSocket bridge. Enable the extension in Chrome/Edge, match its bridge port to PORT (see ~/.lionscraper/port), then run: lionscraper ping",
+    "cliExtensionStoreOpenedStderr": "The extension store page was opened in {{browser}}; install or enable LionScraper there, then run: lionscraper ping"
   },
   "bridgeProtocol": {
     "mustRegisterFirst": "Must register before sending other messages",

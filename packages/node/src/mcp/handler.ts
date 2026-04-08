@@ -16,7 +16,12 @@ import {
 import { logT, normalizeLang, portLang, t, type SupportedLang } from '../i18n/lang.js';
 import { paramsForExtension, resolveBridgeTimeoutMs } from '../bridge/timeout.js';
 import { logger } from '../utils/logger.js';
-import { defaultBrowserEnv, type BrowserEnv, type BrowserKind } from '../utils/browser-env.js';
+import {
+  defaultBrowserEnv,
+  tryOpenExtensionStoreInstallPage,
+  type BrowserEnv,
+  type BrowserKind,
+} from '../utils/browser-env.js';
 
 const MAX_RESPONSE_BYTES = 2 * 1024 * 1024; // 2MB (see JSON.stringify length check in formatSuccessResponse)
 
@@ -111,6 +116,10 @@ async function forwardBridgeProgressToMcp(
 
 export interface ToolHandlerDeps {
   browserEnv?: BrowserEnv;
+  /** Override for tests; default opens Chrome Web Store or Edge Add-ons when a browser is detected. */
+  tryOpenExtensionStoreInstallPage?: (
+    env: BrowserEnv,
+  ) => Promise<{ browser: BrowserKind; url: string } | null>;
 }
 
 export class ToolHandler {
@@ -123,15 +132,21 @@ export class ToolHandler {
     return this.deps.browserEnv ?? defaultBrowserEnv;
   }
 
-  private extensionNotConnectedError(lang: SupportedLang, options?: ExtensionNotConnectedOptions) {
-    return createExtensionNotConnectedError(
+  private async extensionNotConnectedResponse(
+    lang: SupportedLang,
+    options?: Omit<ExtensionNotConnectedOptions, 'extensionStoreLaunch'>,
+  ): Promise<{ content: Array<{ type: 'text'; text: string }> }> {
+    const opener = this.deps.tryOpenExtensionStoreInstallPage ?? tryOpenExtensionStoreInstallPage;
+    const launch = await opener(this.browserEnv);
+    const error = createExtensionNotConnectedError(
       {
         bridgePort: this.bridge.bridgePort,
         sessionCount: this.bridge.sessionManager.sessionCount,
       },
       lang,
-      options,
+      { ...options, extensionStoreLaunch: launch },
     );
+    return this.formatErrorResponse(error);
   }
 
   async handlePing(
@@ -271,14 +286,12 @@ export class ToolHandler {
       };
     }
 
-    return this.formatErrorResponse(
-      this.extensionNotConnectedError(lang, {
-        browserProbe: lastProbe ?? {
-          selectedBrowser: candidates[candidates.length - 1]!.kind,
-          browserRunning: false,
-        },
-      }),
-    );
+    return this.extensionNotConnectedResponse(lang, {
+      browserProbe: lastProbe ?? {
+        selectedBrowser: candidates[candidates.length - 1]!.kind,
+        browserRunning: false,
+      },
+    });
   }
 
   async handleTool(
@@ -293,8 +306,7 @@ export class ToolHandler {
     }
 
     if (!this.bridge.sessionManager.hasConnectedExtension()) {
-      const error = this.extensionNotConnectedError(lang);
-      return this.formatErrorResponse(error);
+      return this.extensionNotConnectedResponse(lang);
     }
 
     const bridgeTimeoutMs = resolveBridgeTimeoutMs(params);

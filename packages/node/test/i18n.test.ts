@@ -76,6 +76,28 @@ describe('createExtensionNotConnectedError', () => {
       true,
     );
   });
+
+  it('merges extension store launch into details and hint', () => {
+    const err = createExtensionNotConnectedError(
+      { bridgePort: 13808, sessionCount: 0 },
+      'en-US',
+      {
+        extensionStoreLaunch: {
+          browser: 'chrome',
+          url: 'https://chromewebstore.google.com/detail/test',
+        },
+      },
+    );
+    const d = err.details as {
+      extensionStoreOpened: boolean;
+      extensionStoreBrowser: string;
+      hint: string;
+    };
+    expect(d.extensionStoreOpened).toBe(true);
+    expect(d.extensionStoreBrowser).toBe('chrome');
+    expect(d.hint).toContain('Chrome');
+    expect(d.hint).toContain('extension store');
+  });
 });
 
 describe('createBrowserNotInstalledError', () => {

@@ -1,6 +1,9 @@
 # LionScraper MCP + CLI + API service
 
-[简体中文](./README_cn.md)
+[简体中文](README_cn.md)
+
+- **Website**: [lionscraper.com](https://www.lionscraper.com/)
+- **npm**: [package `lionscraper`](https://www.npmjs.com/package/lionscraper)
 
 ## What is this?
 
@@ -37,7 +40,7 @@ You get **two commands**; together they support **three integration styles** (MC
 | **`lionscraper-mcp`** | Thin MCP server (stdio) for AI apps |
 | **`lionscraper`** | CLI: `daemon`, `stop`, `scrape`, `ping`, … (also runs the process that serves the HTTP API) |
 
-Without a global install, MCP can still use `npx` (e.g. `npx` with `-y`, `-p`, `lionscraper`, `lionscraper-mcp`—see your app’s MCP docs for the exact JSON).
+Without a global install, MCP can use **`npx`**; see JSON examples under [Add MCP in your AI app](#add-mcp-in-your-ai-app).
 
 ---
 
@@ -77,6 +80,43 @@ Examples assume a **global** `lionscraper` install (UIs differ). In MCP JSON, ev
   }
 }
 ```
+
+**npx (no global install)** — the first run may download the package. **`command`** is **`npx`**; **`args`** are **`["-y", "lionscraper", "lionscraper-mcp"]`** (npm package name `lionscraper`, then binary `lionscraper-mcp`).
+
+**Minimal config (npx):**
+
+```json
+{
+  "mcpServers": {
+    "lionscraper": {
+      "command": "npx",
+      "args": ["-y", "lionscraper", "lionscraper-mcp"]
+    }
+  }
+}
+```
+
+**Full `env` example (npx):**
+
+```json
+{
+  "mcpServers": {
+    "lionscraper": {
+      "command": "npx",
+      "args": ["-y", "lionscraper", "lionscraper-mcp"],
+      "env": {
+        "PORT": "13808",
+        "TIMEOUT": "120000",
+        "LANG": "en-US",
+        "TOKEN": "",
+        "DAEMON": ""
+      }
+    }
+  }
+}
+```
+
+Pin a version by using e.g. `lionscraper@1.0.5` instead of `lionscraper` in `args`.
 
 - **`PORT`**: **HTTP + WebSocket** listen port; default **13808**; must match the extension **bridge port**.
 - **`TIMEOUT`**: Milliseconds to wait for a previous instance to release the port before forcing takeover; default **120000**; **`0`** means force quickly.

@@ -106,13 +106,17 @@ async def _run_tool_cli(subcmd_args: list[str], mode: Literal["scrape", "ping"])
         err_body = json.loads(text)
         if err_body.get("error", {}).get("code") == ClientErrorCode.DAEMON_UNREACHABLE.value:
             sys.stderr.write(f"{port_t(L_cli, 'cliDaemonUnreachableStderr')}\n")
+        ext_details = (err_body.get("error") or {}).get("details") or {}
         if (
             (mode in ("scrape", "ping"))
             and err_body.get("ok") is False
             and err_body.get("error", {}).get("code") == BridgeErrorCode.EXTENSION_NOT_CONNECTED.value
-            and (err_body.get("error", {}).get("details") or {}).get("daemonReachable") is True
+            and ext_details.get("daemonReachable") is True
         ):
             sys.stderr.write(f"{port_t(L_cli, 'cliExtensionNotConnectedStderr')}\n")
+            if ext_details.get("extensionStoreOpened") is True:
+                browser = "Microsoft Edge" if ext_details.get("extensionStoreBrowser") == "edge" else "Chrome"
+                sys.stderr.write(f"{port_t(L_cli, 'cliExtensionStoreOpenedStderr', {'browser': browser})}\n")
     except json.JSONDecodeError:
         pass
 

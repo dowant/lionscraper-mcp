@@ -2,6 +2,11 @@ import { execFile, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { promisify } from 'node:util';
 
+import {
+  EXTENSION_STORE_URL_CHROME,
+  EXTENSION_STORE_URL_EDGE,
+} from '../constants/extension-store.js';
+
 const execFileAsync = promisify(execFile);
 
 export type BrowserKind = 'chrome' | 'edge';
@@ -193,6 +198,40 @@ function launchBrowserImpl(executablePath: string, _kind: BrowserKind): number |
   });
   child.unref();
   return pid;
+}
+
+/** Spawn browser with a single URL argument (extension store). Returns false if spawn did not yield a PID. */
+function spawnBrowserWithUrl(executablePath: string, url: string): boolean {
+  const child = spawn(executablePath, [url], {
+    stdio: 'ignore',
+    windowsHide: true,
+  });
+  if (child.pid === undefined) {
+    return false;
+  }
+  child.on('error', () => {
+    /* ignore */
+  });
+  child.unref();
+  return true;
+}
+
+/**
+ * Opens the LionScraper extension store in Chrome if installed, else in Edge.
+ * Returns null if neither browser is detected or both spawns fail.
+ */
+export async function tryOpenExtensionStoreInstallPage(
+  browserEnv: BrowserEnv,
+): Promise<{ browser: BrowserKind; url: string } | null> {
+  const chromePath = await browserEnv.detectChromeInstall();
+  if (chromePath && spawnBrowserWithUrl(chromePath, EXTENSION_STORE_URL_CHROME)) {
+    return { browser: 'chrome', url: EXTENSION_STORE_URL_CHROME };
+  }
+  const edgePath = await browserEnv.detectEdgeInstall();
+  if (edgePath && spawnBrowserWithUrl(edgePath, EXTENSION_STORE_URL_EDGE)) {
+    return { browser: 'edge', url: EXTENSION_STORE_URL_EDGE };
+  }
+  return null;
 }
 
 async function quitLaunchedBrowserImpl(pid: number): Promise<void> {

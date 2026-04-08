@@ -1,6 +1,11 @@
 # 文档
 docs/
 
+# MCP 工具
+mcp-publisher.exe 
+.mcpregistry_github_token
+.mcpregistry_registry_token
+
 # -----------------------------------------------------------------------------
 # Node — packages/node（构建产物保留空 dist 目录：见 dist/.gitkeep）
 # -----------------------------------------------------------------------------

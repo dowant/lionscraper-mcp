@@ -43,6 +43,7 @@ export type MessageId =
   | 'extension_not_connected.troubleshoot.3'
   | 'extension_not_connected.troubleshoot.4'
   | 'extension_not_connected.troubleshoot.5'
+  | 'extension_not_connected.store_opened_hint'
   | 'server_draining.requests'
   | 'server_draining.new_tasks'
   | 'bridge_timeout'
@@ -72,6 +73,7 @@ function flattenServerMessages(sm: ServerMessages): Record<MessageId, string> {
     'extension_not_connected.troubleshoot.3': sm.extensionNotConnected.troubleshoot['3'],
     'extension_not_connected.troubleshoot.4': sm.extensionNotConnected.troubleshoot['4'],
     'extension_not_connected.troubleshoot.5': sm.extensionNotConnected.troubleshoot['5'],
+    'extension_not_connected.store_opened_hint': sm.extensionNotConnected.storeOpenedHint,
     'server_draining.requests': sm.serverDraining.requests,
     'server_draining.new_tasks': sm.serverDraining.new_tasks,
     'bridge_timeout': sm.bridge.timeout,

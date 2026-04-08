@@ -1,6 +1,9 @@
 # LionScraper 雄狮采集器 MCP + CLI + API 服务（Python）
 
-[English](./README.md)
+[English](https://github.com/dowant/lionscraper-mcp/blob/master/packages/python/README.md)
+
+- **官网**：[lionscraper.com](https://www.lionscraper.com/)
+- **PyPI**：[项目 `lionscraper`](https://pypi.org/project/lionscraper/)
 
 ## 这是什么？
 

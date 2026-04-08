@@ -1,4 +1,6 @@
+import { EXTENSION_STORE_URL_CHROME, EXTENSION_STORE_URL_EDGE } from '../constants/extension-store.js';
 import { t, type SupportedLang } from '../i18n/lang.js';
+import type { BrowserKind } from '../utils/browser-env.js';
 
 export enum BridgeErrorCode {
   BRIDGE_VERSION_MISMATCH = 'BRIDGE_VERSION_MISMATCH',
@@ -77,8 +79,15 @@ export interface ExtensionNotConnectedContext {
   sessionCount: number;
 }
 
+/** Set when the server spawned a browser tab to the extension store (Chrome first, else Edge). */
+export interface ExtensionStoreLaunchInfo {
+  browser: BrowserKind;
+  url: string;
+}
+
 export interface ExtensionNotConnectedOptions {
   browserProbe?: Record<string, unknown>;
+  extensionStoreLaunch?: ExtensionStoreLaunchInfo | null;
 }
 
 export function createExtensionNotConnectedError(
@@ -98,8 +107,8 @@ export function createExtensionNotConnectedError(
 
   const details: Record<string, unknown> = {
     install: {
-      chrome: 'https://chromewebstore.google.com/detail/godiccfjpjdapemodajccjjjcdcccimf',
-      edge: 'https://microsoftedge.microsoft.com/addons/detail/llfpnjbphhfkgbgljpngbjpjpnljkijk',
+      chrome: EXTENSION_STORE_URL_CHROME,
+      edge: EXTENSION_STORE_URL_EDGE,
     },
     troubleshooting,
   };
@@ -110,10 +119,25 @@ export function createExtensionNotConnectedError(
       listeningPort: context.bridgePort,
       registeredSessionCount: context.sessionCount,
     };
-    details.hint = t(lang, 'extension_not_connected.hint');
+    let hint = t(lang, 'extension_not_connected.hint');
     if (context.bridgePort > 0) {
       details.daemonReachable = true;
     }
+
+    const launch = options?.extensionStoreLaunch;
+    if (launch) {
+      details.extensionStoreOpened = true;
+      details.extensionStoreBrowser = launch.browser;
+      details.extensionStoreUrl = launch.url;
+      const browserLabel = launch.browser === 'chrome' ? 'Chrome' : 'Microsoft Edge';
+      hint = `${hint} ${t(lang, 'extension_not_connected.store_opened_hint', { browser: browserLabel })}`;
+    }
+    details.hint = hint;
+  } else if (options?.extensionStoreLaunch != null) {
+    const launch = options.extensionStoreLaunch;
+    details.extensionStoreOpened = true;
+    details.extensionStoreBrowser = launch.browser;
+    details.extensionStoreUrl = launch.url;
   }
 
   if (options?.browserProbe !== undefined) {
@@ -134,8 +158,8 @@ export function createBrowserNotInstalledError(lang: SupportedLang): LionScraper
       edge: 'https://www.microsoft.com/edge',
     },
     extension: {
-      chrome: 'https://chromewebstore.google.com/detail/godiccfjpjdapemodajccjjjcdcccimf',
-      edge: 'https://microsoftedge.microsoft.com/addons/detail/llfpnjbphhfkgbgljpngbjpjpnljkijk',
+      chrome: EXTENSION_STORE_URL_CHROME,
+      edge: EXTENSION_STORE_URL_EDGE,
     },
     hint: t(lang, 'browser_not_installed.hint'),
   });

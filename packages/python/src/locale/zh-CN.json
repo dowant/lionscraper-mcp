@@ -7,6 +7,7 @@
     "extensionNotConnected": {
       "message": "未连接到 LionScraper 扩展。`ping` 可能会自动启动浏览器，或在 Chrome/Edge 已运行时按 `postLaunchWaitMs`（默认 20000 毫秒）轮询等待扩展通过 WebSocket 完成注册；若在此等待后仍失败，常见原因是未安装扩展、扩展被禁用，或与本 MCP 进程之间的桥未建立。",
       "hint": "安装时请用 **Chrome 或 Edge 的普通窗口**打开本次返回信息里的商店链接（不要用 MCP 客户端内置浏览器，通常**无法**安装扩展）。若已安装，在浏览器「扩展程序」里确认 LionScraper **已启用**，再执行 **`ping`**。若仍失败：对照**运行 MCP Server 的那个终端窗口**里显示的端口号，与用户目录下端口文件里的数字是否一致（Windows：`%USERPROFILE%\\.lionscraper\\port`；macOS/Linux：`~/.lionscraper/port`）。",
+      "storeOpenedHint": "本服务器已尝试在 {{browser}} 中打开扩展商店页面。",
       "troubleshoot": {
         "1": "1. 用 **Chrome 或 Edge**（不要用 MCP 内置浏览器）打开商店链接，完成 LionScraper 扩展安装",
         "2": "2. 在浏览器扩展管理页确认 LionScraper **已打开、未禁用**",
@@ -104,7 +105,8 @@
     "cliDaemonUnreachableStderr": "无法通过 HTTP 连接 LionScraper 守护进程。请运行：lionscraper daemon",
     "cliAutoPingAfterSpawn": "守护进程已在后台启动；正在执行 ping 以尝试连接浏览器扩展（最多约 20 秒）…",
     "cliPingAfterDaemonSpawn": "守护进程已在后台启动；本次 ping 将等待扩展完成注册（最多约 20 秒）…",
-    "cliExtensionNotConnectedStderr": "守护进程已在运行，但 LionScraper 扩展尚未在本机 WebSocket 桥上注册。请在 Chrome/Edge 中启用扩展，将桥接端口与 PORT 对齐（见 ~/.lionscraper/port），然后执行：lionscraper ping"
+    "cliExtensionNotConnectedStderr": "守护进程已在运行，但 LionScraper 扩展尚未在本机 WebSocket 桥上注册。请在 Chrome/Edge 中启用扩展，将桥接端口与 PORT 对齐（见 ~/.lionscraper/port），然后执行：lionscraper ping",
+    "cliExtensionStoreOpenedStderr": "已在 {{browser}} 中打开扩展商店页面；请在其中安装或启用 LionScraper，然后执行：lionscraper ping"
   },
   "bridgeProtocol": {
     "mustRegisterFirst": "须先完成注册再发送其他消息",

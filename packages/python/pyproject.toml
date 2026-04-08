@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "lionscraper"
-version = "1.0.3"
+dynamic = ["version"]
 description = "LionScraper bridge daemon, thin MCP stdio, and CLI — local HTTP + WebSocket to Chrome extension (Python)"
 readme = "README.md"
 license = { text = "MIT" }
@@ -28,6 +28,9 @@ dependencies = [
   "websockets>=12.0",
 ]
 
+[project.urls]
+Homepage = "https://www.lionscraper.com/"
+
 [project.optional-dependencies]
 dev = ["pytest>=8.0", "pytest-asyncio>=0.24.0"]
 
@@ -35,10 +38,14 @@ dev = ["pytest>=8.0", "pytest-asyncio>=0.24.0"]
 lionscraper = "lionscraper.cli.entry:main_cli"
 "lionscraper-mcp" = "lionscraper.cli.entry:main_mcp_or_cli"
 
+[tool.setuptools.dynamic]
+version = { file = "VERSION" }
+
 [tool.setuptools]
 package-dir = { "lionscraper" = "src" }
 packages = [
   "lionscraper",
+  "lionscraper.constants",
   "lionscraper.i18n",
   "lionscraper.utils",
   "lionscraper.types",

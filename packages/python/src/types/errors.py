@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from enum import Enum
-from typing import Any, TypedDict
+from typing import Any, Literal, TypedDict
 
+from lionscraper.constants.extension_store import EXTENSION_STORE_URL_CHROME, EXTENSION_STORE_URL_EDGE
 from lionscraper.i18n.lang import SupportedLang, t
 
 
@@ -73,8 +74,14 @@ class ExtensionNotConnectedContext(TypedDict, total=False):
     sessionCount: int
 
 
+class ExtensionStoreLaunchInfo(TypedDict):
+    browser: Literal["chrome", "edge"]
+    url: str
+
+
 class ExtensionNotConnectedOptions(TypedDict, total=False):
     browserProbe: dict[str, Any]
+    extensionStoreLaunch: ExtensionStoreLaunchInfo | None
 
 
 def create_extension_not_connected_error(
@@ -96,8 +103,8 @@ def create_extension_not_connected_error(
 
     details: dict[str, Any] = {
         "install": {
-            "chrome": "https://chromewebstore.google.com/detail/godiccfjpjdapemodajccjjjcdcccimf",
-            "edge": "https://microsoftedge.microsoft.com/addons/detail/llfpnjbphhfkgbgljpngbjpjpnljkijk",
+            "chrome": EXTENSION_STORE_URL_CHROME,
+            "edge": EXTENSION_STORE_URL_EDGE,
         },
         "troubleshooting": troubleshooting,
     }
@@ -110,9 +117,23 @@ def create_extension_not_connected_error(
             "listeningPort": bp,
             "registeredSessionCount": sc,
         }
-        details["hint"] = t(lang, "extension_not_connected.hint")
+        hint = t(lang, "extension_not_connected.hint")
         if bp > 0:
             details["daemonReachable"] = True
+
+        launch = options.get("extensionStoreLaunch") if options else None
+        if launch:
+            details["extensionStoreOpened"] = True
+            details["extensionStoreBrowser"] = launch["browser"]
+            details["extensionStoreUrl"] = launch["url"]
+            browser_label = "Chrome" if launch["browser"] == "chrome" else "Microsoft Edge"
+            hint = f"{hint} {t(lang, 'extension_not_connected.store_opened_hint', {'browser': browser_label})}"
+        details["hint"] = hint
+    elif options is not None and options.get("extensionStoreLaunch") is not None:
+        launch = options["extensionStoreLaunch"]
+        details["extensionStoreOpened"] = True
+        details["extensionStoreBrowser"] = launch["browser"]
+        details["extensionStoreUrl"] = launch["url"]
 
     if options and options.get("browserProbe") is not None:
         details["browserProbe"] = options["browserProbe"]
@@ -134,8 +155,8 @@ def create_browser_not_installed_error(lang: SupportedLang) -> LionScraperError:
                 "edge": "https://www.microsoft.com/edge",
             },
             "extension": {
-                "chrome": "https://chromewebstore.google.com/detail/godiccfjpjdapemodajccjjjcdcccimf",
-                "edge": "https://microsoftedge.microsoft.com/addons/detail/llfpnjbphhfkgbgljpngbjpjpnljkijk",
+                "chrome": EXTENSION_STORE_URL_CHROME,
+                "edge": EXTENSION_STORE_URL_EDGE,
             },
             "hint": t(lang, "browser_not_installed.hint"),
         },

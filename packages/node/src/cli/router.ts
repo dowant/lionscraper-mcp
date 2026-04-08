@@ -99,20 +99,32 @@ async function runToolCli(subcmdArgs: string[], mode: 'scrape' | 'ping'): Promis
 
   try {
     const errBody = JSON.parse(text) as {
-      error?: { code?: string };
-      details?: { daemonReachable?: boolean };
+      error?: {
+        code?: string;
+        details?: {
+          daemonReachable?: boolean;
+          extensionStoreOpened?: boolean;
+          extensionStoreBrowser?: string;
+        };
+      };
       ok?: boolean;
     };
     if (errBody?.error?.code === ClientErrorCode.DAEMON_UNREACHABLE) {
       process.stderr.write(`${portT(LCli, 'cliDaemonUnreachableStderr')}\n`);
     }
+    const extDetails = errBody?.error?.details;
     if (
       (mode === 'scrape' || mode === 'ping') &&
       errBody?.ok === false &&
       errBody?.error?.code === BridgeErrorCode.EXTENSION_NOT_CONNECTED &&
-      errBody?.details?.daemonReachable === true
+      extDetails?.daemonReachable === true
     ) {
       process.stderr.write(`${portT(LCli, 'cliExtensionNotConnectedStderr')}\n`);
+      if (extDetails.extensionStoreOpened === true) {
+        const browser =
+          extDetails.extensionStoreBrowser === 'edge' ? 'Microsoft Edge' : 'Chrome';
+        process.stderr.write(`${portT(LCli, 'cliExtensionStoreOpenedStderr', { browser })}\n`);
+      }
     }
   } catch {
     /* not JSON */

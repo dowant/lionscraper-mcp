@@ -1,6 +1,9 @@
 # LionScraper 雄狮采集器 MCP + CLI + API 服务
 
-[English](./README.md)
+[English](README.md)
+
+- **官网**：[lionscraper.com](https://www.lionscraper.com/)
+- **npm**：[包 `lionscraper`](https://www.npmjs.com/package/lionscraper)
 
 ## 这是什么？
 
@@ -37,7 +40,7 @@ npm install -g lionscraper
 | **`lionscraper-mcp`** | 面向 AI 软件的薄 MCP（stdio） |
 | **`lionscraper`** | 终端 CLI：`daemon`、`stop`、`scrape`、`ping` 等（启动的守护进程同时提供 HTTP API） |
 
-若不全局安装，仍可在 MCP 配置里用 `npx`（例如参数依次为 `-y`、`-p`、`lionscraper`、`lionscraper-mcp`，具体 JSON 以所用软件的 MCP 说明为准）。
+若不全局安装，可在 MCP 配置里使用 **`npx`**；完整 JSON 示例见下文 [在 AI 软件里添加 MCP](#在-ai-软件里添加-mcp) 中的 **npx** 小节。
 
 ---
 
@@ -77,6 +80,43 @@ npm install -g lionscraper
   }
 }
 ```
+
+**使用 npx（无需全局安装）** — 首次运行可能会下载包。将 **`command`** 设为 **`npx`**，**`args`** 为 **`["-y", "lionscraper", "lionscraper-mcp"]`**（先 npm **包名** `lionscraper`，再 **可执行名** `lionscraper-mcp`）。
+
+**简单配置（npx）：**
+
+```json
+{
+  "mcpServers": {
+    "lionscraper": {
+      "command": "npx",
+      "args": ["-y", "lionscraper", "lionscraper-mcp"]
+    }
+  }
+}
+```
+
+**详细配置（npx，`env` 可按需删减）：**
+
+```json
+{
+  "mcpServers": {
+    "lionscraper": {
+      "command": "npx",
+      "args": ["-y", "lionscraper", "lionscraper-mcp"],
+      "env": {
+        "PORT": "13808",
+        "TIMEOUT": "120000",
+        "LANG": "zh-CN",
+        "TOKEN": "",
+        "DAEMON": ""
+      }
+    }
+  }
+}
+```
+
+若要固定版本，可将 `args` 中的 `lionscraper` 改为例如 `lionscraper@1.0.5`。
 
 - **`PORT`**：**HTTP + WebSocket** 监听端口，默认 **13808**，须与扩展 **桥接端口** 一致。
 - **`TIMEOUT`**：占口接管时等待上一实例退出的毫秒数，默认 **120000**；**`0`** 表示尽快强制接管。

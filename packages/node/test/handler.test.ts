@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { ToolHandler, type McpToolHandlerExtra } from '../src/mcp/handler.js';
+import { ToolHandler, type McpToolHandlerExtra, type ToolHandlerDeps } from '../src/mcp/handler.js';
 import type { BridgeServer } from '../src/bridge/websocket.js';
 import { BridgeErrorCode, createError, SystemErrorCode } from '../src/types/errors.js';
 import type { BrowserEnv } from '../src/utils/browser-env.js';
@@ -234,6 +234,11 @@ function mockBrowserEnv(partial: Partial<BrowserEnv>): BrowserEnv {
   };
 }
 
+/** Avoid spawning real browsers when tests hit EXTENSION_NOT_CONNECTED. */
+const noOpenExtensionStore: Pick<ToolHandlerDeps, 'tryOpenExtensionStoreInstallPage'> = {
+  tryOpenExtensionStoreInstallPage: async () => null,
+};
+
 describe('ToolHandler handlePing', () => {
   afterEach(() => {
     vi.useRealTimers();
@@ -244,6 +249,7 @@ describe('ToolHandler handlePing', () => {
       info: { deviceId: 'd', browser: 'chrome', extensionVersion: '1.0.0' },
     };
     const handler = new ToolHandler(makePingBridge(sessionRef), {
+      ...noOpenExtensionStore,
       browserEnv: mockBrowserEnv({}),
     });
     const out = await handler.handlePing({ lang: 'en-US' });
@@ -257,6 +263,7 @@ describe('ToolHandler handlePing', () => {
   it('returns BROWSER_NOT_INSTALLED when Chrome and Edge are not detected', async () => {
     const sessionRef = { info: null as { deviceId: string; browser: string; extensionVersion: string } | null };
     const handler = new ToolHandler(makePingBridge(sessionRef), {
+      ...noOpenExtensionStore,
       browserEnv: mockBrowserEnv({
         detectChromeInstall: async () => null,
         detectEdgeInstall: async () => null,
@@ -272,6 +279,7 @@ describe('ToolHandler handlePing', () => {
     vi.useFakeTimers();
     const sessionRef = { info: null as { deviceId: string; browser: string; extensionVersion: string } | null };
     const handler = new ToolHandler(makePingBridge(sessionRef), {
+      ...noOpenExtensionStore,
       browserEnv: mockBrowserEnv({
         detectChromeInstall: async () => '/fake/chrome',
         detectEdgeInstall: async () => null,
@@ -296,6 +304,7 @@ describe('ToolHandler handlePing', () => {
     vi.useFakeTimers();
     const sessionRef = { info: null as { deviceId: string; browser: string; extensionVersion: string } | null };
     const handler = new ToolHandler(makePingBridge(sessionRef), {
+      ...noOpenExtensionStore,
       browserEnv: mockBrowserEnv({
         detectChromeInstall: async () => '/fake/chrome',
         detectEdgeInstall: async () => null,
@@ -320,6 +329,7 @@ describe('ToolHandler handlePing', () => {
     const launchBrowser = vi.fn(() => 9001);
     const quitLaunchedBrowser = vi.fn().mockResolvedValue(undefined);
     const handler = new ToolHandler(makePingBridge(sessionRef), {
+      ...noOpenExtensionStore,
       browserEnv: mockBrowserEnv({
         detectChromeInstall: async () => '/fake/chrome',
         detectEdgeInstall: async () => null,
@@ -349,6 +359,7 @@ describe('ToolHandler handlePing', () => {
     const launchBrowser = vi.fn().mockReturnValueOnce(111).mockReturnValueOnce(222);
     const quitLaunchedBrowser = vi.fn().mockResolvedValue(undefined);
     const handler = new ToolHandler(makePingBridge(sessionRef), {
+      ...noOpenExtensionStore,
       browserEnv: mockBrowserEnv({
         detectChromeInstall: async () => '/fake/chrome',
         detectEdgeInstall: async () => '/fake/edge',
@@ -383,6 +394,7 @@ describe('ToolHandler handlePing', () => {
     const launchBrowser = vi.fn().mockReturnValueOnce(11).mockReturnValueOnce(22);
     const quitLaunchedBrowser = vi.fn().mockResolvedValue(undefined);
     const handler = new ToolHandler(makePingBridge(sessionRef), {
+      ...noOpenExtensionStore,
       browserEnv: mockBrowserEnv({
         detectChromeInstall: async () => '/fake/chrome',
         detectEdgeInstall: async () => '/fake/edge',
@@ -414,6 +426,7 @@ describe('ToolHandler handlePing', () => {
     const quitLaunchedBrowser = vi.fn().mockResolvedValue(undefined);
     const isBrowserRunning = vi.fn().mockResolvedValueOnce(true).mockResolvedValue(false);
     const handler = new ToolHandler(makePingBridge(sessionRef), {
+      ...noOpenExtensionStore,
       browserEnv: mockBrowserEnv({
         detectChromeInstall: async () => '/fake/chrome',
         detectEdgeInstall: async () => '/fake/edge',
@@ -445,6 +458,7 @@ describe('ToolHandler handlePing', () => {
     const launchBrowser = vi.fn();
     const quitLaunchedBrowser = vi.fn().mockResolvedValue(undefined);
     const handler = new ToolHandler(makePingBridge(sessionRef), {
+      ...noOpenExtensionStore,
       browserEnv: mockBrowserEnv({
         detectChromeInstall: async () => '/fake/chrome',
         detectEdgeInstall: async () => null,
@@ -467,6 +481,25 @@ describe('ToolHandler handlePing', () => {
 });
 
 describe('ToolHandler i18n errors', () => {
+  it('calls tryOpenExtensionStoreInstallPage when extension is not connected (scrape)', async () => {
+    const tryOpen = vi.fn(async () => null);
+    const bridge = {
+      isDraining: () => false,
+      bridgePort: 13808,
+      sessionManager: {
+        hasConnectedExtension: () => false,
+        sessionCount: 0,
+        getSessionInfo: () => null,
+        getTotalPendingBridgeRequests: () => 0,
+      },
+      sendToExtension: vi.fn(),
+    } as unknown as BridgeServer;
+
+    const handler = new ToolHandler(bridge, { tryOpenExtensionStoreInstallPage: tryOpen });
+    await handler.handleTool('scrape', { url: 'https://x.com' });
+    expect(tryOpen).toHaveBeenCalledTimes(1);
+  });
+
   it('returns Chinese EXTENSION_NOT_CONNECTED when lang is zh-CN', async () => {
     const bridge = {
       isDraining: () => false,
@@ -480,7 +513,7 @@ describe('ToolHandler i18n errors', () => {
       sendToExtension: vi.fn(),
     } as unknown as BridgeServer;
 
-    const handler = new ToolHandler(bridge);
+    const handler = new ToolHandler(bridge, noOpenExtensionStore);
     const out = await handler.handleTool('scrape', { url: 'https://x.com', lang: 'zh-CN' });
     const text = out.content[0]?.type === 'text' ? out.content[0].text : '';
     const body = JSON.parse(text);

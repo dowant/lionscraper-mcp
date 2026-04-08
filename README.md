@@ -1,42 +1,75 @@
-# LionScraper 雄狮采集器 MCP + CLI 服务
+# LionScraper MCP + CLI + HTTP API bridge
 
-## 这是什么？
+[简体中文](README_cn.md)
 
-**LionScraper 雄狮采集器**是一款浏览器扩展，可以在网页里做列表、文章、链接、图片等采集。本仓库提供的是配套的 **MCP 服务**：把它连到你使用的 **AI 软件**（例如 Cursor）之后，你就可以在对话里请 AI 帮你调用扩展去完成采集，而不必自己点遍每个菜单。
+- **Website**: [lionscraper.com](https://www.lionscraper.com/)
+- **npm**: [package `lionscraper`](https://www.npmjs.com/package/lionscraper)
+- **PyPI**: [project `lionscraper`](https://pypi.org/project/lionscraper/)
 
-可以把它理解成一座「小桥」：AI 软件在一边，浏览器扩展在另一边，中间由本服务负责传话。**真正的采集逻辑在扩展里完成**，本服务只做连接与转发。
+## What is this?
 
-## 使用前请准备好
+**LionScraper** is a browser extension that can collect lists, articles, links, images, and more from web pages. This repository provides the companion **bridge** between your tools and that extension in three ways:
 
-1. **浏览器**：Chrome 或 Edge（以扩展实际支持的浏览器为准）。
-2. **雄狮采集器扩展**：从浏览器扩展商店安装并启用（名称以商店展示为准）。
-3. **Node.js**：电脑需安装 **18 或更高版本**。若尚未安装，可到 [Node.js 官网](https://nodejs.org/) 下载安装包，按提示下一步即可。
-4. **支持 MCP 的 AI 软件**：例如 Cursor、Trae 等（以各软件是否支持 MCP 为准）。
+- **MCP** (`lionscraper-mcp`): connect an **AI app** (e.g. Cursor) so the model can call scraping tools over stdio.
+- **CLI** (`lionscraper`): run **daemon**, **scrape**, **ping**, and more from a terminal on the same local HTTP/WebSocket port as the extension.
+- **HTTP API**: when the daemon is running, call the same capabilities over **loopback JSON HTTP** (e.g. `/v1/...`) from scripts or any HTTP client—no MCP or CLI front-end required.
 
-## 安装 MCP 服务（npm 市场包）
+**The real scraping logic runs in the extension**; these packages connect and forward.
 
-本服务已发布在 npm，包名为 **[lionscraper](https://www.npmjs.com/package/lionscraper)**。你可以打开该链接查看说明与版本信息。
+## Before you start
 
-在电脑打开终端（Windows 上可以是「命令提示符」或 PowerShell），执行：
+1. **Browser**: Chrome or Edge (follow what the extension supports).
+2. **LionScraper extension**: install and enable from the store.
+   - **Chrome**: [Chrome Web Store — LionScraper](https://chromewebstore.google.com/detail/godiccfjpjdapemodajccjjjcdcccimf)
+   - **Microsoft Edge**: [Edge Add-ons — LionScraper](https://microsoftedge.microsoft.com/addons/detail/llfpnjbphhfkgbgljpngbjpjpnljkijk)
+3. **Runtime** (pick one or both implementations):
+   - **Node.js** **18+** for the npm package — [Node.js](https://nodejs.org/)
+   - **Python** **3.10+** for the PyPI package — [Python](https://www.python.org/downloads/)
+4. **For MCP**: an AI app that supports MCP (e.g. Cursor, Trae).
+5. **For the HTTP API**: same browser, extension, and daemon as the CLI; see the package READMEs for paths and examples.
+
+## Two implementations
+
+| | **Node.js (npm)** | **Python (pip)** |
+|--|-------------------|------------------|
+| **Registry** | `io.github.dowant/lionscraper-node` | `io.github.dowant/lionscraper-python` |
+| **Docs (EN)** | [packages/node/README.md](packages/node/README.md) | [packages/python/README.md](packages/python/README.md) |
+| **Docs (ZH)** | [packages/node/README_cn.md](packages/node/README_cn.md) | [packages/python/README_cn.md](packages/python/README_cn.md) |
+
+Install one or both; they are separate packages with the same CLI command names.
+
+### Install (npm)
+
+Published as **[lionscraper](https://www.npmjs.com/package/lionscraper)** on npm.
 
 ```bash
 npm install -g lionscraper
 ```
 
-安装成功后，系统里会多出两个常用命令：**`lionscraper-mcp`**（给 AI 软件连 MCP 用）和 **`lionscraper`**（终端 CLI）。二者都依赖同一套本地守护进程与扩展桥接，**`PORT`**（默认 **13808**）须与扩展里的**桥接端口**一致。
+Without a global install, MCP can use **`npx`**; see the **npx** JSON examples under [Add MCP in your AI app](#add-mcp-in-your-ai-app).
 
-若你**不想**全局安装，也可以在 AI 软件的 MCP 配置里用 `npx` 临时拉取并运行（需已安装 Node.js）。示例思路：把启动命令设为 `npx`，参数依次为 `-y`、`-p`、`lionscraper`、`lionscraper-mcp`（具体 JSON 格式见你所用软件的 MCP 配置说明）。
+### Install (pip)
 
-## CLI（终端）
+Published as **[lionscraper](https://pypi.org/project/lionscraper/)** on PyPI.
 
-在已全局安装的前提下，可在终端使用 **`lionscraper`** 做脚本化采集或与 MCP **并行**使用（共用 **`lionscraper daemon`** 与 **`PORT`**）：
+```bash
+pip install lionscraper
+```
 
-- **`lionscraper daemon`**：常驻运行，在同一端口上提供 HTTP（CLI / 薄 MCP 调用）与 WebSocket（扩展连接）。
-- **`lionscraper stop`**：停止当前配置端口上的守护进程。
-- **`lionscraper ping`**：检查扩展是否已在桥上注册（不经过 MCP 对话）。
-- **`lionscraper scrape`**：发起采集；可用 **`--method`** 选择列表/正文/邮箱/电话/链接/图片等模式，与 MCP 工具能力对应。
+A **virtual environment** is recommended, or `pip install --user lionscraper` if you prefer not to install into the system interpreter.
 
-示例：
+### Commands (both packages)
+
+| Command | Role |
+|--------|------|
+| **`lionscraper-mcp`** | Thin MCP server (stdio) for AI apps |
+| **`lionscraper`** | CLI: `daemon`, `stop`, `scrape`, `ping`, … (also serves the **HTTP API** on the same port) |
+
+After **`pip install`**, if `lionscraper-mcp` is not on your `PATH`, use **`python -m lionscraper`** with **no extra arguments** for MCP stdio (see [packages/python/README.md](packages/python/README.md)).
+
+**`PORT`** (default **13808**) must match the extension **bridge port** in all modes.
+
+## CLI quick start
 
 ```bash
 lionscraper daemon
@@ -44,13 +77,13 @@ lionscraper ping
 lionscraper scrape -u https://www.example.com
 ```
 
-更完整的参数说明、多 URL、分页与过滤等，见本仓库 [packages/node/README_cn.md](packages/node/README_cn.md)；英文与 npm 展示页一致，见 [npm 上的 lionscraper 包](https://www.npmjs.com/package/lionscraper)。
+Full flags, multiple URLs, pagination, and **HTTP API** details: [packages/node/README.md](packages/node/README.md) / [packages/python/README.md](packages/python/README.md).
 
-## 在 AI 软件里添加 MCP
+## Add MCP in your AI app
 
-以下示例假定已**全局安装**（软件界面可能不同）。MCP 里 **`env` 的值均为字符串**。
+Examples assume **`lionscraper-mcp`** is on your `PATH` (from npm or pip). In MCP JSON, every **`env` value is a string**.
 
-**简单配置**（不写 `env` 时 **`PORT` 默认 13808**，须与扩展桥接端口一致）：
+**Minimal config** (`PORT` defaults to **13808**; must match the extension bridge port):
 
 ```json
 {
@@ -62,7 +95,7 @@ lionscraper scrape -u https://www.example.com
 }
 ```
 
-**详细配置**（可按需删减键；空字符串与省略该键含义接近）：
+**Full `env` example** (omit keys you do not need):
 
 ```json
 {
@@ -72,7 +105,7 @@ lionscraper scrape -u https://www.example.com
       "env": {
         "PORT": "13808",
         "TIMEOUT": "120000",
-        "LANG": "zh-CN",
+        "LANG": "en-US",
         "TOKEN": "",
         "DAEMON": ""
       }
@@ -81,57 +114,111 @@ lionscraper scrape -u https://www.example.com
 }
 ```
 
-- **`PORT`**：**HTTP + WebSocket** 监听端口，默认 **13808**，须与扩展 **桥接端口** 一致。
-- **`TIMEOUT`**：占口接管时等待上一实例退出的毫秒数，默认 **120000**；**`0`** 表示尽快强制接管。
-- **`LANG`**：工具说明与 stderr 日志语言（如 **`zh-CN`**、**`en-US`**）。
-- **`TOKEN`**：与守护进程一致的 Bearer；**留空**表示不带鉴权。
-- **`DAEMON`**：仅 **`0`** 禁止薄 MCP 自动拉起守护进程；留空或其它值与省略相同。
+**npx (no global install)** — requires Node.js; the first run may download the package. The npm **package name** is `lionscraper`; the executable is `lionscraper-mcp`. Use `command` **`npx`** and pass **`lionscraper`** then **`lionscraper-mcp`** in `args` (after `-y`).
 
-保存配置后，按软件要求**重启 MCP 或重启软件**，使新配置生效。
+**Minimal config (npx):**
 
-## 在浏览器扩展里对齐端口
+```json
+{
+  "mcpServers": {
+    "lionscraper": {
+      "command": "npx",
+      "args": ["-y", "lionscraper", "lionscraper-mcp"]
+    }
+  }
+}
+```
 
-1. 打开雄狮采集器的**设置或选项页**。
-2. 找到 **桥接端口**（或类似名称），设为与上一步 MCP 配置里 **`PORT`** 相同的数字（例如 `13808`）。
-3. 若曾改端口或连接异常，可在扩展里使用 **「重新连接」**；仍不行时可尝试 **重新加载扩展** 或重启浏览器。
+**Full `env` example (npx):**
 
-## 怎样日常使用？
+```json
+{
+  "mcpServers": {
+    "lionscraper": {
+      "command": "npx",
+      "args": ["-y", "lionscraper", "lionscraper-mcp"],
+      "env": {
+        "PORT": "13808",
+        "TIMEOUT": "120000",
+        "LANG": "en-US",
+        "TOKEN": "",
+        "DAEMON": ""
+      }
+    }
+  }
+}
+```
 
-1. 保持扩展**已启用**，并尽量让需要采集的页面在浏览器里**打开着**（或按扩展要求操作）。
-2. 在 AI 对话里用自然语言说明需求，例如：
-   - 「先检查一下雄狮采集器扩展有没有连上。」
-   - 「帮我采集这个网页上的列表数据 / 文章正文 / 邮箱 / 电话 / 链接 / 图片。」
-3. AI 会通过 MCP 调用扩展；若提示未连接或超时，可先请 AI **再执行一次连接检查**，并确认端口一致、扩展已开启。
+To pin a version, use e.g. `"lionscraper@1.0.5"` in place of `"lionscraper"` inside `args`.
 
-## 常见问题（白话）
+- **`PORT`**: HTTP + WebSocket listen port; default **13808**; must match the extension **bridge port**.
+- **`TIMEOUT`**: ms to wait for a previous instance to release the port; default **120000**; **`0`** forces takeover quickly.
+- **`LANG`**: tool descriptions and stderr language (**`en-US`**, **`zh-CN`**, or POSIX forms).
+- **`TOKEN`**: Bearer token shared with the daemon; empty means no auth.
+- **`DAEMON`**: only **`0`** disables auto-starting `lionscraper daemon` from thin MCP.
 
-**问：提示扩展未连接、或采集失败？**
+Restart MCP or the host app after changing config.
 
-- 扩展是否已打开且未被禁用？
-- AI 里配置的 **端口** 与扩展里的 **桥接端口** 是否**完全一致**？
-- 同一台电脑上，后台一般只需要**一组**本服务与扩展的桥接；若你同时开了多种 MCP 配置或重复安装，可能造成冲突。
+### Python: MCP via `python -m`
 
-**问：AI 里已经能看到很多「工具」，是不是就一定连好了？**
+```json
+{
+  "mcpServers": {
+    "lionscraper": {
+      "command": "python",
+      "args": ["-m", "lionscraper"]
+    }
+  }
+}
+```
 
-不一定。能看到工具只说明 **AI 到本服务**这一段通了；扩展还必须连上同一端口并完成注册。
+Use the same **`python`** you used to install the package (or `python3` on some systems).
 
-## MCP Registry 与第三方目录收录
+## Match the port in the browser extension
 
-本仓库在 **官方 MCP Registry** 上按双包登记（元数据文件名均为 `server.json`）：
+1. Open LionScraper **settings / options**.
+2. Set **bridge port** to the same value as **`PORT`** (e.g. `13808`).
+3. If needed, use **Reconnect**, reload the extension, or restart the browser.
 
-| 目录 | Registry 名称 | 说明 |
-|------|----------------|------|
-| [`packages/node/server.json`](packages/node/server.json) | `io.github.dowant/lionscraper-node` | 对应 npm 包 [`lionscraper`](https://www.npmjs.com/package/lionscraper)，`package.json` 内含 `mcpName` 校验字段 |
-| [`packages/python/server.json`](packages/python/server.json) | `io.github.dowant/lionscraper-python` | 对应 PyPI 包 [`lionscraper`](https://pypi.org/project/lionscraper/)，英文 `README.md` 内含 PyPI 描述所需的 `mcp-name` 注释 |
+## Day-to-day use
 
-**发布到 Registry 的步骤概要**（需本机安装官方 CLI，见 [Quickstart](https://modelcontextprotocol.io/registry/quickstart)）：
+1. Keep the extension **enabled** and target pages **open** as required.
+2. Ask in natural language (e.g. check connection, scrape lists / article / emails / phones / links / images).
+3. If you see “not connected” or timeouts, retry a connection check and confirm **PORT** matches.
 
-1. 将 **npm / PyPI** 发布到与各自 `server.json` 中 **`version`** 一致的版本（当前示例为 **1.0.3**）。
-2. 在仓库根下进入 **`packages/node`**，执行 `mcp-publisher login github`（只需一次），再执行 `mcp-publisher publish`。
-3. 再进入 **`packages/python`**，同样执行 `mcp-publisher publish`（登录可沿用）。
+## FAQ
 
-**第三方目录**无统一入口，常见做法包括：在 [Glama](https://glama.ai/mcp/servers) 使用 **Add Server** 按站点流程提交；[Smithery](https://smithery.ai/docs/build/publish) 主要面向 **公网 HTTPS + Streamable HTTP**，与本仓库以 **stdio + npm/pip 安装**为主的形态不同，需另备托管方案后再考虑。
+**Extension not connected or scrape fails?**
 
-## 许可证
+- Is the extension enabled?
+- Does **PORT** in the AI app match the extension **bridge port** exactly?
+- One bridge per machine is usually enough; duplicate MCP configs can conflict.
 
-MIT（与 npm 包 [lionscraper](https://www.npmjs.com/package/lionscraper) 声明一致）。
+**Seeing MCP tools in the client means everything works?**
+
+Not necessarily. Tools only prove **AI → bridge**; the extension must also register on the same port.
+
+## MCP Registry and directories
+
+Official MCP Registry entries (both use `server.json`):
+
+| Path | Registry name | Package |
+|------|----------------|---------|
+| [packages/node/server.json](packages/node/server.json) | `io.github.dowant/lionscraper-node` | [npm: lionscraper](https://www.npmjs.com/package/lionscraper) (`mcpName` in `package.json`) |
+| [packages/python/server.json](packages/python/server.json) | `io.github.dowant/lionscraper-python` | [PyPI: lionscraper](https://pypi.org/project/lionscraper/) (`mcp-name` comment in English `README.md`) |
+
+**Publish outline** (install the official CLI, see [Quickstart](https://modelcontextprotocol.io/registry/quickstart)):
+
+1. Publish **npm / PyPI** at the version in each `server.json`.
+2. In **`packages/node`**: `mcp-publisher login github`, then `mcp-publisher publish`.
+3. In **`packages/python`**: `mcp-publisher publish` (login reused).
+
+Third-party listings (e.g. [Glama](https://glama.ai/mcp/servers)) have their own rules; [Smithery](https://smithery.ai/docs/build/publish) targets public HTTPS/streaming setups rather than local stdio + npm/pip by default.
+
+## Third-party directory (Glama)
+
+This project is listed on Glama (e.g. [LionScraper on Glama](https://glama.ai/mcp/servers/dowant/lionscraper-mcp)). If the page shows **cannot be installed** or **license not found**, typical fixes are: add a root **`LICENSE`** (this repo includes [LICENSE](LICENSE)), add **`glama.json`** with maintainer **GitHub usernames** for org-owned repos ([glama.json](glama.json)—edit `maintainers` if claim fails), **claim** the server on Glama, and optionally complete Glama’s **Docker / release** flow if you need their install and security/quality checks—official install remains **`npm install -g lionscraper`** and **`pip install lionscraper`**. See also the [score / checklist page](https://glama.ai/mcp/servers/dowant/lionscraper-mcp/score).
+
+## License
+
+[MIT](LICENSE) (same as the npm and PyPI packages).

@@ -1,11 +1,13 @@
 {
   "name": "lionscraper",
-  "version": "1.0.3",
+  "version": "1.0.5",
   "description": "LionScraper bridge daemon, thin MCP stdio, and CLI — local HTTP + WebSocket to Chrome extension",
+  "homepage": "https://www.lionscraper.com/",
   "mcpName": "io.github.dowant/lionscraper-node",
   "repository": {
     "type": "git",
-    "url": "https://github.com/dowant/lionscraper-mcp.git"
+    "url": "https://github.com/dowant/lionscraper-mcp.git",
+    "directory": "packages/node"
   },
   "type": "module",
   "files": [
@@ -19,6 +21,7 @@
     "lionscraper-mcp": "dist/mcp.js"
   },
   "scripts": {
+    "prepublishOnly": "node ../../scripts/sync-version.mjs",
     "build": "tsc",
     "dev": "tsc --watch",
     "start": "node dist/lionscraper.js daemon",
@@ -31,7 +34,7 @@
     "lionscraper",
     "scrape",
     "web-scraping",
-    "mcp",    
+    "mcp",
     "cli",
     "chrome-extension"
   ],

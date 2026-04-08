@@ -2,7 +2,8 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import Any, Awaitable, Callable, TypedDict
+from collections.abc import Awaitable, Callable
+from typing import Any, TypedDict
 
 from lionscraper.bridge.protocol import BridgeProgressParams
 from lionscraper.bridge.timeout import params_for_extension, resolve_bridge_timeout_ms
@@ -18,7 +19,12 @@ from lionscraper.types.errors import (
     create_extension_not_connected_error,
     is_lion_scraper_error,
 )
-from lionscraper.utils.browser_env import BrowserEnv, BrowserKind, default_browser_env
+from lionscraper.utils.browser_env import (
+    BrowserEnv,
+    BrowserKind,
+    default_browser_env,
+    try_open_extension_store_install_page,
+)
 from lionscraper.utils.logger import logger
 
 MAX_RESPONSE_BYTES = 2 * 1024 * 1024
@@ -126,28 +132,42 @@ async def _forward_bridge_progress_to_mcp(
         pass
 
 
+TryOpenExtensionStoreFn = Callable[[BrowserEnv], Awaitable[dict[str, str] | None]]
+
+
 class ToolHandler:
-    def __init__(self, bridge: BridgeServer, browser_env: BrowserEnv | None = None):
+    def __init__(
+        self,
+        bridge: BridgeServer,
+        browser_env: BrowserEnv | None = None,
+        try_open_extension_store: TryOpenExtensionStoreFn | None = None,
+    ):
         self._bridge = bridge
         self._browser_env_override = browser_env
+        self._try_open_store = try_open_extension_store or try_open_extension_store_install_page
 
     @property
     def _browser_env(self) -> BrowserEnv:
         return default_browser_env if self._browser_env_override is None else self._browser_env_override
 
-    def _extension_not_connected_error(
+    async def _extension_not_connected_response(
         self,
         lang: SupportedLang,
         options: dict[str, Any] | None = None,
-    ) -> LionScraperError:
-        return create_extension_not_connected_error(
+    ) -> dict[str, Any]:
+        launch = await self._try_open_store(self._browser_env)
+        merged: dict[str, Any] = dict(options) if options else {}
+        if launch is not None:
+            merged["extensionStoreLaunch"] = launch
+        err = create_extension_not_connected_error(
             {
                 "bridgePort": self._bridge.bridge_port,
                 "sessionCount": self._bridge.session_manager.session_count,
             },
             lang,
-            options,
+            merged if merged else None,
         )
+        return self._format_error_response(err)
 
     async def handle_ping(
         self,
@@ -270,11 +290,9 @@ class ToolHandler:
             }
 
         fb_kind = candidates[-1][0] if candidates else "chrome"
-        return self._format_error_response(
-            self._extension_not_connected_error(
-                lang,
-                {"browserProbe": last_probe or {"selectedBrowser": fb_kind, "browserRunning": False}},
-            )
+        return await self._extension_not_connected_response(
+            lang,
+            {"browserProbe": last_probe or {"selectedBrowser": fb_kind, "browserRunning": False}},
         )
 
     async def handle_tool(
@@ -289,7 +307,7 @@ class ToolHandler:
             return self._format_error_response(err)
 
         if not self._bridge.session_manager.has_connected_extension():
-            return self._format_error_response(self._extension_not_connected_error(lang))
+            return await self._extension_not_connected_response(lang)
 
         bridge_timeout_ms = resolve_bridge_timeout_ms(params)
         extension_params = params_for_extension(params)

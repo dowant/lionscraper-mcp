@@ -91,6 +91,7 @@ def _flatten_server_messages(sm: dict[str, Any]) -> dict[str, str]:
         "extension_not_connected.troubleshoot.3": enc["3"],
         "extension_not_connected.troubleshoot.4": enc["4"],
         "extension_not_connected.troubleshoot.5": enc["5"],
+        "extension_not_connected.store_opened_hint": sm["extensionNotConnected"]["storeOpenedHint"],
         "server_draining.requests": sm["serverDraining"]["requests"],
         "server_draining.new_tasks": sm["serverDraining"]["new_tasks"],
         "bridge_timeout": sm["bridge"]["timeout"],

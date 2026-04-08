@@ -2,7 +2,10 @@
 
 <!-- mcp-name: io.github.dowant/lionscraper-python -->
 
-[简体中文](./README_cn.md)
+[简体中文](https://github.com/dowant/lionscraper-mcp/blob/master/packages/python/README_cn.md)
+
+- **Website**: [lionscraper.com](https://www.lionscraper.com/)
+- **PyPI**: [project `lionscraper`](https://pypi.org/project/lionscraper/)
 
 ## What is this?
 
