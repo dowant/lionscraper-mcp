@@ -8,13 +8,13 @@ from typing import Any, TypedDict
 from lionscraper.bridge.protocol import BridgeProgressParams
 from lionscraper.bridge.timeout import params_for_extension, resolve_bridge_timeout_ms
 from lionscraper.bridge.websocket import BridgeServer
+from lionscraper.core.http_fetch_fallback import run_http_fetch_fallback
 from lionscraper.i18n.lang import SupportedLang, log_t, normalize_lang, port_lang, t
 from lionscraper.types.bridge import BridgeMethod
 from lionscraper.types.errors import (
     BridgeErrorCode,
     LionScraperError,
     SystemErrorCode,
-    create_browser_not_installed_error,
     create_error,
     create_extension_not_connected_error,
     is_lion_scraper_error,
@@ -187,6 +187,7 @@ class ToolHandler:
                 "ok": True,
                 "bridgeOk": True,
                 "browser": session_info["browser"],
+                "development": "python",
                 "extensionVersion": session_info["extensionVersion"],
             }
             return self._format_success_response(result, lang)
@@ -194,7 +195,20 @@ class ToolHandler:
         chrome_path = await self._browser_env.detect_chrome_install()
         edge_path = await self._browser_env.detect_edge_install()
         if not chrome_path and not edge_path:
-            return self._format_error_response(create_browser_not_installed_error(lang))
+            return self._format_success_response(
+                {
+                    "ok": True,
+                    "bridgeOk": False,
+                    "development": "python",
+                    "extensionConnected": False,
+                    "scrapingMode": "http_fetch",
+                    "diagnostics": {
+                        "httpFetchFallback": True,
+                        "message": t(lang, "http_fetch_fallback.note"),
+                    },
+                },
+                lang,
+            )
 
         candidates: list[tuple[BrowserKind, str]] = []
         if chrome_path:
@@ -214,6 +228,7 @@ class ToolHandler:
                     "ok": True,
                     "bridgeOk": True,
                     "browser": session_info["browser"],
+                    "development": "python",
                     "extensionVersion": session_info["extensionVersion"],
                 }
                 return self._format_success_response(result, lang)
@@ -239,6 +254,7 @@ class ToolHandler:
                             "ok": True,
                             "bridgeOk": True,
                             "browser": session_info["browser"],
+                            "development": "python",
                             "extensionVersion": session_info["extensionVersion"],
                             "diagnostics": {
                                 "browserAssist": True,
@@ -271,6 +287,7 @@ class ToolHandler:
                         "ok": True,
                         "bridgeOk": True,
                         "browser": session_info["browser"],
+                        "development": "python",
                         "extensionVersion": session_info["extensionVersion"],
                         "diagnostics": {
                             "browserAssist": True,
@@ -307,6 +324,21 @@ class ToolHandler:
             return self._format_error_response(err)
 
         if not self._bridge.session_manager.has_connected_extension():
+            chrome_path = await self._browser_env.detect_chrome_install()
+            edge_path = await self._browser_env.detect_edge_install()
+            if not chrome_path and not edge_path:
+                try:
+                    result = await run_http_fetch_fallback(method, params, lang)
+                    return self._format_success_response(result, lang)
+                except LionScraperError as err:
+                    return self._format_error_response(err)
+                except Exception as err:
+                    return self._format_error_response(
+                        create_error(
+                            SystemErrorCode.EXTENSION_INTERNAL_ERROR,
+                            str(err) if err else "unknown",
+                        )
+                    )
             return await self._extension_not_connected_response(lang)
 
         bridge_timeout_ms = resolve_bridge_timeout_ms(params)

@@ -21,6 +21,28 @@ from lionscraper.utils.port import get_configured_port, stop_lionscraper_on_port
 from lionscraper.version import PACKAGE_VERSION
 
 
+async def _enrich_cli_ping_text_async(base_url: str, auth: str | None, text: str, is_error: bool) -> str:
+    """Old daemons omit `development` on ping — fill from GET /v1/health (same as thin MCP)."""
+    if is_error:
+        return text
+    try:
+        body = json.loads(text)
+    except json.JSONDecodeError:
+        return text
+    if body.get("ok") is not True or "development" in body:
+        return text
+    dev = "python"
+    try:
+        h = await daemon_health(base_url, auth)
+        impl = h.get("implementation")
+        if impl in ("node", "python"):
+            dev = impl
+    except Exception:
+        pass
+    body["development"] = dev
+    return json.dumps(body, ensure_ascii=False)
+
+
 def _print_help() -> None:
     sys.stderr.write(
         """LionScraper CLI (daemon + HTTP control plane)
@@ -101,6 +123,9 @@ async def _run_tool_cli(subcmd_args: list[str], mode: Literal["scrape", "ping"])
         if result.get("content") and result["content"][0].get("type") == "text"
         else json.dumps(result.get("content", []))
     )
+
+    if mode == "ping":
+        text = await _enrich_cli_ping_text_async(base_url, auth, text, bool(result.get("isError")))
 
     try:
         err_body = json.loads(text)

@@ -257,10 +257,11 @@ describe('ToolHandler handlePing', () => {
     expect(body.ok).toBe(true);
     expect(body.bridgeOk).toBe(true);
     expect(body.browser).toBe('chrome');
+    expect(body.development).toBe('node');
     expect(body.extensionVersion).toBe('1.0.0');
   });
 
-  it('returns BROWSER_NOT_INSTALLED when Chrome and Edge are not detected', async () => {
+  it('returns http_fetch success when Chrome and Edge are not detected', async () => {
     const sessionRef = { info: null as { deviceId: string; browser: string; extensionVersion: string } | null };
     const handler = new ToolHandler(makePingBridge(sessionRef), {
       ...noOpenExtensionStore,
@@ -271,8 +272,12 @@ describe('ToolHandler handlePing', () => {
     });
     const out = await handler.handlePing({});
     const body = JSON.parse(out.content[0].type === 'text' ? out.content[0].text : '{}');
-    expect(body.ok).toBe(false);
-    expect(body.error.code).toBe('BROWSER_NOT_INSTALLED');
+    expect(body.ok).toBe(true);
+    expect(body.bridgeOk).toBe(false);
+    expect(body.development).toBe('node');
+    expect(body.extensionConnected).toBe(false);
+    expect(body.scrapingMode).toBe('http_fetch');
+    expect(body.diagnostics?.httpFetchFallback).toBe(true);
   });
 
   it('returns EXTENSION_NOT_CONNECTED with browserProbe when browser running but no session', async () => {
@@ -318,6 +323,7 @@ describe('ToolHandler handlePing', () => {
     const out = await promise;
     const body = JSON.parse(out.content[0].type === 'text' ? out.content[0].text : '{}');
     expect(body.ok).toBe(true);
+    expect(body.development).toBe('node');
     expect(body.diagnostics?.launched).toBe(false);
     expect(body.diagnostics?.selectedBrowser).toBe('chrome');
     expect(body.diagnostics?.waitedMs).toBeGreaterThanOrEqual(0);
@@ -348,6 +354,7 @@ describe('ToolHandler handlePing', () => {
     const out = await promise;
     const body = JSON.parse(out.content[0].type === 'text' ? out.content[0].text : '{}');
     expect(body.ok).toBe(true);
+    expect(body.development).toBe('node');
     expect(body.diagnostics?.launched).toBe(true);
     expect(body.diagnostics?.waitedMs).toBeGreaterThanOrEqual(0);
     expect(quitLaunchedBrowser).not.toHaveBeenCalled();
@@ -382,6 +389,7 @@ describe('ToolHandler handlePing', () => {
     const out = await promise;
     const body = JSON.parse(out.content[0].type === 'text' ? out.content[0].text : '{}');
     expect(body.ok).toBe(true);
+    expect(body.development).toBe('node');
     expect(body.browser).toBe('edge');
     expect(body.diagnostics?.selectedBrowser).toBe('edge');
     expect(body.diagnostics?.launched).toBe(true);
@@ -449,6 +457,7 @@ describe('ToolHandler handlePing', () => {
     const out = await promise;
     const body = JSON.parse(out.content[0].type === 'text' ? out.content[0].text : '{}');
     expect(body.ok).toBe(true);
+    expect(body.development).toBe('node');
     expect(quitLaunchedBrowser).not.toHaveBeenCalled();
     expect(launchBrowser).toHaveBeenCalledTimes(1);
   });
@@ -480,6 +489,52 @@ describe('ToolHandler handlePing', () => {
 
 });
 
+describe('ToolHandler http fetch fallback', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('scrape_emails uses fetch when no browser and no extension', async () => {
+    const bridge = {
+      isDraining: () => false,
+      bridgePort: 13808,
+      sessionManager: {
+        hasConnectedExtension: () => false,
+        sessionCount: 0,
+        getSessionInfo: () => null,
+        getTotalPendingBridgeRequests: () => 0,
+      },
+      sendToExtension: vi.fn(),
+    } as unknown as BridgeServer;
+
+    const html = '<html><body>hello contact@example.com</body></html>';
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        url: 'https://example.com/p',
+        arrayBuffer: async () => new TextEncoder().encode(html).buffer,
+      }),
+    );
+
+    const handler = new ToolHandler(bridge, {
+      ...noOpenExtensionStore,
+      browserEnv: mockBrowserEnv({
+        detectChromeInstall: async () => null,
+        detectEdgeInstall: async () => null,
+      }),
+    });
+
+    const out = await handler.handleTool('scrape_emails', { url: 'https://example.com/p', lang: 'en-US' });
+    const body = JSON.parse(out.content[0]?.type === 'text' ? out.content[0].text : '{}');
+    expect(body.ok).toBe(true);
+    expect(body.summary?.httpFetchFallback).toBe(true);
+    expect(body.results?.[0]?.data).toContain('contact@example.com');
+    expect(bridge.sendToExtension).not.toHaveBeenCalled();
+  });
+});
+
 describe('ToolHandler i18n errors', () => {
   it('calls tryOpenExtensionStoreInstallPage when extension is not connected (scrape)', async () => {
     const tryOpen = vi.fn(async () => null);
@@ -495,7 +550,13 @@ describe('ToolHandler i18n errors', () => {
       sendToExtension: vi.fn(),
     } as unknown as BridgeServer;
 
-    const handler = new ToolHandler(bridge, { tryOpenExtensionStoreInstallPage: tryOpen });
+    const handler = new ToolHandler(bridge, {
+      tryOpenExtensionStoreInstallPage: tryOpen,
+      browserEnv: mockBrowserEnv({
+        detectChromeInstall: async () => '/fake/chrome',
+        detectEdgeInstall: async () => null,
+      }),
+    });
     await handler.handleTool('scrape', { url: 'https://x.com' });
     expect(tryOpen).toHaveBeenCalledTimes(1);
   });
@@ -513,7 +574,13 @@ describe('ToolHandler i18n errors', () => {
       sendToExtension: vi.fn(),
     } as unknown as BridgeServer;
 
-    const handler = new ToolHandler(bridge, noOpenExtensionStore);
+    const handler = new ToolHandler(bridge, {
+      ...noOpenExtensionStore,
+      browserEnv: mockBrowserEnv({
+        detectChromeInstall: async () => '/fake/chrome',
+        detectEdgeInstall: async () => null,
+      }),
+    });
     const out = await handler.handleTool('scrape', { url: 'https://x.com', lang: 'zh-CN' });
     const text = out.content[0]?.type === 'text' ? out.content[0].text : '';
     const body = JSON.parse(text);

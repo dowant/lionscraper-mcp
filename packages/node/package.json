@@ -1,6 +1,6 @@
 {
   "name": "lionscraper",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "LionScraper bridge daemon, thin MCP stdio, and CLI — local HTTP + WebSocket to Chrome extension",
   "homepage": "https://www.lionscraper.com/",
   "mcpName": "io.github.dowant/lionscraper-node",

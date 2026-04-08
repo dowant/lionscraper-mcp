@@ -182,6 +182,7 @@ def _handle_health(service: BridgeService, request: web.Request) -> web.Response
         {
             "ok": True,
             "identity": "lionscraper",
+            "implementation": "python",
             "bridgePort": service.listening_port,
             "sessionCount": service.bridge.session_manager.session_count,
         }

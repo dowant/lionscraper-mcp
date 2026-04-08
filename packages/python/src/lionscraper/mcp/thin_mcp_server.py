@@ -8,7 +8,7 @@ from mcp.server.lowlevel.helper_types import ReadResourceContents
 from mcp.server.lowlevel.server import Server
 from pydantic import AnyUrl
 
-from lionscraper.client.daemon_client import call_daemon_tool
+from lionscraper.client.daemon_client import call_daemon_tool, daemon_health
 from lionscraper.client.daemon_lifecycle import ensure_local_daemon_running
 from lionscraper.i18n.lang import get_tool_metadata_locale, log_t, port_lang
 from lionscraper.mcp.mcp_prompts import thin_mcp_get_prompt, thin_mcp_list_prompts
@@ -45,6 +45,40 @@ def _daemon_unreachable_result(r: dict[str, Any]) -> bool:
         return j.get("error", {}).get("code") == ClientErrorCode.DAEMON_UNREACHABLE.value
     except json.JSONDecodeError:
         return False
+
+
+async def _enrich_ping_development_if_needed(
+    name: str,
+    base_url: str,
+    auth_token: str | None,
+    result: dict[str, Any],
+) -> dict[str, Any]:
+    """Thin MCP forwards to loopback daemon; old daemons omit `development` on ping — fill from /v1/health."""
+    if name != "ping" or result.get("isError"):
+        return result
+    content = result.get("content")
+    if not isinstance(content, list) or not content:
+        return result
+    first = content[0]
+    if not isinstance(first, dict) or first.get("type") != "text":
+        return result
+    try:
+        body = json.loads(str(first.get("text", "")))
+    except json.JSONDecodeError:
+        return result
+    if body.get("ok") is not True or "development" in body:
+        return result
+    dev = "python"
+    try:
+        h = await daemon_health(base_url, auth_token)
+        impl = h.get("implementation")
+        if impl in ("node", "python"):
+            dev = impl
+    except Exception:
+        pass
+    body["development"] = dev
+    new_first = {**first, "text": json.dumps(body, ensure_ascii=False)}
+    return {**result, "content": [new_first, *content[1:]]}
 
 
 def _result_to_call_tool(r: dict[str, Any]) -> types.CallToolResult:
@@ -149,6 +183,7 @@ def create_thin_mcp_server() -> Server:
                     )
                 except Exception:
                     pass
+            result = await _enrich_ping_development_if_needed(name, base_url, auth_token, result)
             return _result_to_call_tool(result)
         except Exception as err:
             logger.warn("thin MCP tool forward failed", err)

@@ -28,6 +28,8 @@
 4. **For MCP**: an AI app that supports MCP (e.g. Cursor, Trae).
 5. **For the HTTP API**: same browser, extension, and daemon as the CLI; see the package READMEs for paths and examples.
 
+**HTTP fallback without Chrome/Edge**: If neither browser is detected under standard paths and the extension is not connected, MCP still starts; `ping` succeeds with **http_fetch** mode and `scrape*` use a minimal server-side HTTP GET (no JS execution). If a browser is installed but the extension is not connected, you still get the extension connection flow. The Node auto-spawn path fixes Unix installs where `lionscraper.js` was resolved without a leading `/` (e.g. Glama/Docker). The Python package uses **aiohttp** for outbound HTTP/WebSocket to the daemon.
+
 ## Two implementations
 
 | | **Node.js (npm)** | **Python (pip)** |
@@ -53,10 +55,10 @@ Without a global install, MCP can use **`npx`**; see the **npx** JSON examples u
 Published as **[lionscraper](https://pypi.org/project/lionscraper/)** on PyPI.
 
 ```bash
-pip install lionscraper
+pip install -U lionscraper
 ```
 
-A **virtual environment** is recommended, or `pip install --user lionscraper` if you prefer not to install into the system interpreter.
+A **virtual environment** is recommended, or `pip install -U --user lionscraper` if you prefer not to install into the system interpreter.
 
 ### Commands (both packages)
 
@@ -65,7 +67,7 @@ A **virtual environment** is recommended, or `pip install --user lionscraper` if
 | **`lionscraper-mcp`** | Thin MCP server (stdio) for AI apps |
 | **`lionscraper`** | CLI: `daemon`, `stop`, `scrape`, `ping`, … (also serves the **HTTP API** on the same port) |
 
-After **`pip install`**, if `lionscraper-mcp` is not on your `PATH`, use **`python -m lionscraper`** with **no extra arguments** for MCP stdio (see [packages/python/README.md](packages/python/README.md)).
+After **`pip install -U lionscraper`**, if `lionscraper-mcp` is not on your `PATH`, use **`python -m lionscraper`** with **no extra arguments** for MCP stdio (see [packages/python/README.md](packages/python/README.md)).
 
 **`PORT`** (default **13808**) must match the extension **bridge port** in all modes.
 
@@ -149,7 +151,7 @@ Examples assume **`lionscraper-mcp`** is on your `PATH` (from npm or pip). In MC
 }
 ```
 
-To pin a version, use e.g. `"lionscraper@1.0.5"` in place of `"lionscraper"` inside `args`.
+To pin a version, use e.g. `"lionscraper@1.0.1"` in place of `"lionscraper"` inside `args`.
 
 - **`PORT`**: HTTP + WebSocket listen port; default **13808**; must match the extension **bridge port**.
 - **`TIMEOUT`**: ms to wait for a previous instance to release the port; default **120000**; **`0`** forces takeover quickly.
@@ -217,7 +219,7 @@ Third-party listings (e.g. [Glama](https://glama.ai/mcp/servers)) have their own
 
 ## Third-party directory (Glama)
 
-This project is listed on Glama (e.g. [LionScraper on Glama](https://glama.ai/mcp/servers/dowant/lionscraper-mcp)). If the page shows **cannot be installed** or **license not found**, typical fixes are: add a root **`LICENSE`** (this repo includes [LICENSE](LICENSE)), add **`glama.json`** with maintainer **GitHub usernames** for org-owned repos ([glama.json](glama.json)—edit `maintainers` if claim fails), **claim** the server on Glama, and optionally complete Glama’s **Docker / release** flow if you need their install and security/quality checks—official install remains **`npm install -g lionscraper`** and **`pip install lionscraper`**. See also the [score / checklist page](https://glama.ai/mcp/servers/dowant/lionscraper-mcp/score).
+This project is listed on Glama (e.g. [LionScraper on Glama](https://glama.ai/mcp/servers/dowant/lionscraper-mcp)). If the page shows **cannot be installed** or **license not found**, typical fixes are: add a root **`LICENSE`** (this repo includes [LICENSE](LICENSE)), add **`glama.json`** with maintainer **GitHub usernames** for org-owned repos ([glama.json](glama.json)—edit `maintainers` if claim fails), **claim** the server on Glama, and optionally complete Glama’s **Docker / release** flow if you need their install and security/quality checks—official install remains **`npm install -g lionscraper`** and **`pip install -U lionscraper`**. See also the [score / checklist page](https://glama.ai/mcp/servers/dowant/lionscraper-mcp/score).
 
 ## License
 

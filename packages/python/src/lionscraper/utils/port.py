@@ -7,9 +7,8 @@ import socket
 import uuid
 from typing import Any, Literal
 
-import httpx
-import websockets
-from websockets.exceptions import ConnectionClosed
+import aiohttp
+from aiohttp import WSMsgType
 
 from lionscraper.i18n.lang import port_lang, port_t
 from lionscraper.utils.logger import logger
@@ -59,29 +58,34 @@ def _loopback_auth_headers() -> dict[str, str]:
 
 async def _http_health_is_lionscraper(port: int) -> bool:
     try:
-        async with httpx.AsyncClient(timeout=3.0) as client:
-            r = await client.get(
+        timeout = aiohttp.ClientTimeout(total=3.0)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(
                 f"http://127.0.0.1:{port}/v1/health",
                 headers=_loopback_auth_headers(),
-            )
-            if r.status_code != 200:
-                return False
-            body = r.json()
-            return body.get("ok") is True and body.get("identity") == "lionscraper"
-    except Exception:
+            ) as r:
+                if r.status != 200:
+                    return False
+                try:
+                    body = await r.json()
+                except (aiohttp.ContentTypeError, json.JSONDecodeError):
+                    return False
+                return body.get("ok") is True and body.get("identity") == "lionscraper"
+    except (aiohttp.ClientError, OSError):
         return False
 
 
 async def _http_post_daemon_shutdown(port: int) -> bool:
     try:
-        async with httpx.AsyncClient(timeout=3.0) as client:
-            r = await client.post(
+        timeout = aiohttp.ClientTimeout(total=3.0)
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.post(
                 f"http://127.0.0.1:{port}/v1/daemon/shutdown",
                 headers={"Content-Type": "application/json", **_loopback_auth_headers()},
-                content="{}",
-            )
-            return r.is_success
-    except Exception:
+                data="{}",
+            ) as r:
+                return 200 <= r.status < 300
+    except (aiohttp.ClientError, OSError):
         return False
 
 
@@ -99,32 +103,37 @@ async def probe_port(
     payload = json.dumps(
         {"jsonrpc": "2.0", "id": req_id, "method": "probe", "params": {"intent": intent}}
     )
-    deadline = asyncio.get_event_loop().time() + timeout_ms / 1000.0 + PROBE_CLOSE_GRACE_MS / 1000.0
+    loop = asyncio.get_event_loop()
+    deadline = loop.time() + timeout_ms / 1000.0 + PROBE_CLOSE_GRACE_MS / 1000.0
+    conn_timeout = aiohttp.ClientTimeout(sock_connect=timeout_ms / 1000.0)
     try:
-        async with websockets.connect(
-            uri,
-            open_timeout=timeout_ms / 1000.0,
-            close_timeout=PROBE_CLOSE_GRACE_MS / 1000.0,
-        ) as ws:
-            await ws.send(payload)
-            while asyncio.get_event_loop().time() < deadline:
-                try:
-                    remaining = max(0.01, deadline - asyncio.get_event_loop().time())
-                    raw = await asyncio.wait_for(ws.recv(), timeout=remaining)
-                except asyncio.TimeoutError:
-                    return None
-                try:
-                    msg = json.loads(raw)
-                except json.JSONDecodeError:
-                    continue
-                if msg.get("id") != req_id:
-                    continue
-                if msg.get("error"):
-                    return None
-                res = msg.get("result")
-                if isinstance(res, dict) and isinstance(res.get("identity"), str):
-                    return res
-    except (ConnectionClosed, OSError, asyncio.TimeoutError, websockets.InvalidURI, websockets.InvalidHandshake):
+        async with aiohttp.ClientSession(timeout=conn_timeout) as session:
+            async with session.ws_connect(uri, heartbeat=None, autoping=False) as ws:
+                await ws.send_str(payload)
+                while loop.time() < deadline:
+                    remaining = max(0.01, deadline - loop.time())
+                    try:
+                        msg = await asyncio.wait_for(ws.receive(), timeout=remaining)
+                    except asyncio.TimeoutError:
+                        return None
+                    if msg.type == WSMsgType.TEXT:
+                        raw = msg.data
+                        if not isinstance(raw, str):
+                            continue
+                        try:
+                            parsed = json.loads(raw)
+                        except json.JSONDecodeError:
+                            continue
+                        if parsed.get("id") != req_id:
+                            continue
+                        if parsed.get("error"):
+                            return None
+                        res = parsed.get("result")
+                        if isinstance(res, dict) and isinstance(res.get("identity"), str):
+                            return res
+                    elif msg.type in (WSMsgType.CLOSE, WSMsgType.CLOSING, WSMsgType.CLOSED, WSMsgType.ERROR):
+                        return None
+    except (aiohttp.ClientError, OSError, asyncio.TimeoutError):
         return None
     except Exception:
         return None

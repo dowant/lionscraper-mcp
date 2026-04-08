@@ -6,13 +6,13 @@ import type { BridgeMethod, BridgeProgressParams } from '../types/bridge.js';
 import type { LionScraperError } from '../types/errors.js';
 import {
   BridgeErrorCode,
-  createBrowserNotInstalledError,
   createError,
   createExtensionNotConnectedError,
   isLionScraperError,
   SystemErrorCode,
   type ExtensionNotConnectedOptions,
 } from '../types/errors.js';
+import { runHttpFetchFallback } from '../core/http-fetch-fallback.js';
 import { logT, normalizeLang, portLang, t, type SupportedLang } from '../i18n/lang.js';
 import { paramsForExtension, resolveBridgeTimeoutMs } from '../bridge/timeout.js';
 import { logger } from '../utils/logger.js';
@@ -167,6 +167,7 @@ export class ToolHandler {
         ok: true,
         bridgeOk: true,
         browser: sessionInfo.browser,
+        development: 'node',
         extensionVersion: sessionInfo.extensionVersion,
       };
       return this.formatSuccessResponse(result, lang);
@@ -176,7 +177,20 @@ export class ToolHandler {
     const edgePath = await this.browserEnv.detectEdgeInstall();
 
     if (!chromePath && !edgePath) {
-      return this.formatErrorResponse(createBrowserNotInstalledError(lang));
+      return this.formatSuccessResponse(
+        {
+          ok: true,
+          bridgeOk: false,
+          development: 'node',
+          extensionConnected: false,
+          scrapingMode: 'http_fetch',
+          diagnostics: {
+            httpFetchFallback: true,
+            message: t(lang, 'http_fetch_fallback.note'),
+          },
+        },
+        lang,
+      );
     }
 
     const candidates: Array<{ kind: BrowserKind; path: string }> = [];
@@ -204,6 +218,7 @@ export class ToolHandler {
           ok: true,
           bridgeOk: true,
           browser: sessionInfo.browser,
+          development: 'node',
           extensionVersion: sessionInfo.extensionVersion,
         };
         return this.formatSuccessResponse(result, lang);
@@ -231,6 +246,7 @@ export class ToolHandler {
               ok: true,
               bridgeOk: true,
               browser: sessionInfo.browser,
+              development: 'node',
               extensionVersion: sessionInfo.extensionVersion,
               diagnostics: {
                 browserAssist: true,
@@ -266,6 +282,7 @@ export class ToolHandler {
             ok: true,
             bridgeOk: true,
             browser: sessionInfo.browser,
+            development: 'node',
             extensionVersion: sessionInfo.extensionVersion,
             diagnostics: {
               browserAssist: true,
@@ -306,6 +323,22 @@ export class ToolHandler {
     }
 
     if (!this.bridge.sessionManager.hasConnectedExtension()) {
+      const chromePath = await this.browserEnv.detectChromeInstall();
+      const edgePath = await this.browserEnv.detectEdgeInstall();
+      if (!chromePath && !edgePath) {
+        try {
+          const result = await runHttpFetchFallback(method, params, lang, extra?.signal);
+          return this.formatSuccessResponse(result, lang);
+        } catch (err) {
+          const error = isLionScraperError(err)
+            ? err
+            : createError(
+                SystemErrorCode.EXTENSION_INTERNAL_ERROR,
+                err instanceof Error ? err.message : String(err),
+              );
+          return this.formatErrorResponse(error);
+        }
+      }
       return this.extensionNotConnectedResponse(lang);
     }
 

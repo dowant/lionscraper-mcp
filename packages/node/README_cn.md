@@ -116,7 +116,7 @@ npm install -g lionscraper
 }
 ```
 
-若要固定版本，可将 `args` 中的 `lionscraper` 改为例如 `lionscraper@1.0.5`。
+若要固定版本，可将 `args` 中的 `lionscraper` 改为例如 `lionscraper@1.0.1`。
 
 - **`PORT`**：**HTTP + WebSocket** 监听端口，默认 **13808**，须与扩展 **桥接端口** 一致。
 - **`TIMEOUT`**：占口接管时等待上一实例退出的毫秒数，默认 **120000**；**`0`** 表示尽快强制接管。

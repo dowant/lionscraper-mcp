@@ -25,15 +25,17 @@
 4. **若使用 MCP**：需要支持 MCP 的 AI 软件（例如 Cursor、Trae 等）。
 5. **若使用 HTTP API**：与 CLI 相同，需要扩展与 **`lionscraper daemon`**（或等价进程占用桥接端口）；用 `curl` 等访问 `http://127.0.0.1:$PORT`（详见下文「HTTP API（本地 REST）」一节）。
 
+本包依赖 **aiohttp** 作为对守护进程的 HTTP 与 WebSocket 探测客户端；在未检测到 Chrome/Edge 且扩展未连接时，`ping` / `scrape*` 可走服务端 **HTTP 兜底**（不执行页面 JS，能力弱于扩展）。
+
 ## 安装（pip）
 
 本包发布在 PyPI，项目名为 **[lionscraper](https://pypi.org/project/lionscraper/)**。
 
 ```bash
-pip install lionscraper
+pip install -U lionscraper
 ```
 
-建议使用 **虚拟环境**；若不想写入系统解释器，也可使用 `pip install --user lionscraper`。
+建议使用 **虚拟环境**；若不想写入系统解释器，也可使用 `pip install -U --user lionscraper`。
 
 安装后仍是 **两个命令**，但集成方式包含 **MCP、CLI、HTTP API** 三种：
 
@@ -93,7 +95,7 @@ pip install lionscraper
 
 ### 若终端找不到 `lionscraper-mcp`
 
-在已通过 **`pip install lionscraper`** 安装的前提下，可用 **`python -m lionscraper`** 走相同路由：**模块名后没有任何参数** 时为薄 MCP（stdio）；**任意**额外参数（含 `--debug`）都会走 CLI。示例：
+在已通过 **`pip install -U lionscraper`** 安装的前提下，可用 **`python -m lionscraper`** 走相同路由：**模块名后没有任何参数** 时为薄 MCP（stdio）；**任意**额外参数（含 `--debug`）都会走 CLI。示例：
 
 ```json
 {

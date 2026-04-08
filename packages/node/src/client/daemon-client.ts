@@ -19,6 +19,8 @@ export interface CallDaemonOptions {
 export interface DaemonHealthOk {
   ok: true;
   identity?: string;
+  /** Which LionScraper daemon build is serving HTTP (`ping` / tools); thin MCP may merge into `ping` when missing. */
+  implementation?: 'node' | 'python';
   bridgePort: number;
   sessionCount: number;
 }
@@ -312,10 +314,15 @@ export async function daemonHealth(
   const sessionCount =
     typeof rawSc === 'number' && Number.isFinite(rawSc) ? Math.max(0, Math.floor(rawSc)) : 0;
 
+  const impl = o.implementation;
+  const implementation =
+    impl === 'node' || impl === 'python' ? (impl as 'node' | 'python') : undefined;
+
   return {
     ok: true,
     bridgePort,
     sessionCount,
     ...(typeof o.identity === 'string' ? { identity: o.identity } : {}),
+    ...(implementation ? { implementation } : {}),
   };
 }

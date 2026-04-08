@@ -95,7 +95,26 @@ async function runToolCli(subcmdArgs: string[], mode: 'scrape' | 'ping'): Promis
 
   const result = await callDaemonTool(baseUrl, name, toolArgs, { authToken: auth });
 
-  const text = result.content[0]?.type === 'text' ? result.content[0].text : JSON.stringify(result.content);
+  let text = result.content[0]?.type === 'text' ? result.content[0].text : JSON.stringify(result.content);
+
+  if (!result.isError && mode === 'ping' && result.content[0]?.type === 'text') {
+    try {
+      const body = JSON.parse(text) as Record<string, unknown>;
+      if (body.ok === true && body.development == null) {
+        let dev: 'node' | 'python' = 'node';
+        try {
+          const h = await daemonHealth(baseUrl, auth);
+          if (h.implementation === 'node' || h.implementation === 'python') dev = h.implementation;
+        } catch {
+          /* keep dev = 'node' for npm CLI */
+        }
+        body.development = dev;
+        text = JSON.stringify(body);
+      }
+    } catch {
+      /* keep text */
+    }
+  }
 
   try {
     const errBody = JSON.parse(text) as {

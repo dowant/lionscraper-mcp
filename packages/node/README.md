@@ -116,7 +116,7 @@ Examples assume a **global** `lionscraper` install (UIs differ). In MCP JSON, ev
 }
 ```
 
-Pin a version by using e.g. `lionscraper@1.0.5` instead of `lionscraper` in `args`.
+Pin a version by using e.g. `lionscraper@1.0.1` instead of `lionscraper` in `args`.
 
 - **`PORT`**: **HTTP + WebSocket** listen port; default **13808**; must match the extension **bridge port**.
 - **`TIMEOUT`**: Milliseconds to wait for a previous instance to release the port before forcing takeover; default **120000**; **`0`** means force quickly.

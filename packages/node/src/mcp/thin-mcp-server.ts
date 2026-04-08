@@ -1,5 +1,5 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { callDaemonTool } from '../client/daemon-client.js';
+import { callDaemonTool, daemonHealth } from '../client/daemon-client.js';
 import { ensureLocalDaemonRunning } from '../client/daemon-lifecycle.js';
 import { getDaemonAuthToken, getDaemonHttpBaseUrl } from '../utils/daemon-config.js';
 import { ClientErrorCode } from '../types/errors.js';
@@ -16,6 +16,38 @@ import type { CallToolResult, ServerNotification } from '@modelcontextprotocol/s
 function getProgressToken(extra: McpToolHandlerExtra): string | number | undefined {
   if (!extra._meta || typeof extra._meta !== 'object') return undefined;
   return (extra._meta as { progressToken?: string | number }).progressToken;
+}
+
+/** Old daemons omit `development` on ping; merge from GET /v1/health `implementation`. */
+async function enrichPingDevelopmentIfNeeded(
+  name: string,
+  baseUrl: string,
+  authToken: string | undefined,
+  result: CallToolResult,
+  signal: AbortSignal | undefined,
+): Promise<CallToolResult> {
+  if (name !== 'ping' || result.isError) return result;
+  const first = result.content[0];
+  if (!first || first.type !== 'text') return result;
+  let body: Record<string, unknown>;
+  try {
+    body = JSON.parse(first.text) as Record<string, unknown>;
+  } catch {
+    return result;
+  }
+  if (body.ok !== true || body.development != null) return result;
+  let dev: 'node' | 'python' = 'node';
+  try {
+    const h = await daemonHealth(baseUrl, authToken, signal);
+    if (h.implementation === 'node' || h.implementation === 'python') dev = h.implementation;
+  } catch {
+    /* keep dev = 'node' for this npm thin MCP */
+  }
+  body.development = dev;
+  return {
+    ...result,
+    content: [{ type: 'text', text: JSON.stringify(body) }],
+  };
 }
 
 /**
@@ -81,7 +113,13 @@ export function createThinMcpServer(): McpServer {
           /* keep first result */
         }
       }
-      return result as CallToolResult;
+      return (await enrichPingDevelopmentIfNeeded(
+        name,
+        baseUrl,
+        authToken,
+        result as CallToolResult,
+        options.signal,
+      )) as CallToolResult;
     } catch (err) {
       logger.warn('thin MCP tool forward failed', err);
       return {

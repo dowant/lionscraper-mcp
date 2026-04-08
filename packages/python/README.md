@@ -27,15 +27,17 @@
 4. **For MCP**: an AI app that supports MCP (e.g. Cursor, Trae).
 5. **For the HTTP API**: same browser, extension, and daemon as the CLI; use `curl`, `fetch`, or any HTTP client against `http://127.0.0.1:$PORT` (see [HTTP API (local REST)](#http-api-local-rest) below).
 
+This package uses **aiohttp** for outbound HTTP and WebSocket probes to the daemon. When Chrome/Edge are not detected and the extension is not connected, `ping` / `scrape*` can use a server-side **HTTP fallback** (no in-page JS).
+
 ## Install (pip)
 
 This package is published on PyPI as **[lionscraper](https://pypi.org/project/lionscraper/)**.
 
 ```bash
-pip install lionscraper
+pip install -U lionscraper
 ```
 
-You may use a **virtual environment** (recommended) or `pip install --user lionscraper` if you prefer not to install into the system interpreter.
+You may use a **virtual environment** (recommended) or `pip install -U --user lionscraper` if you prefer not to install into the system interpreter.
 
 You get **two commands**; together they support **three integration styles** (MCP, CLI, HTTP API):
 
@@ -44,7 +46,7 @@ You get **two commands**; together they support **three integration styles** (MC
 | **`lionscraper-mcp`** | Thin MCP server (stdio) for AI apps |
 | **`lionscraper`** | CLI: `daemon`, `stop`, `scrape`, `ping`, … (also runs the process that serves the HTTP API) |
 
-If `lionscraper-mcp` is not on your `PATH` after install, use the full path to the script (e.g. under your venv’s `Scripts/` or `bin/`), or the **`python -m lionscraper`** form below in MCP (still requires a normal `pip install lionscraper`).
+If `lionscraper-mcp` is not on your `PATH` after install, use the full path to the script (e.g. under your venv’s `Scripts/` or `bin/`), or the **`python -m lionscraper`** form below in MCP (still requires a normal `pip install -U lionscraper`).
 
 ---
 
@@ -95,7 +97,7 @@ Restart MCP or the app so the config applies.
 
 ### If `lionscraper-mcp` is not on `PATH`
 
-After **`pip install lionscraper`**, you can run the same routing with **`python -m lionscraper`**: **no arguments** after the module name selects thin MCP over stdio; **any** extra argument (including `--debug`) uses the CLI instead. Example:
+After **`pip install -U lionscraper`**, you can run the same routing with **`python -m lionscraper`**: **no arguments** after the module name selects thin MCP over stdio; **any** extra argument (including `--debug`) uses the CLI instead. Example:
 
 ```json
 {

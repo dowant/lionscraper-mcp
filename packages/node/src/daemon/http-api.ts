@@ -205,6 +205,7 @@ function handleHealth(service: BridgeService, req: IncomingMessage, res: ServerR
   json(res, 200, {
     ok: true,
     identity: 'lionscraper',
+    implementation: 'node',
     bridgePort: service.listeningPort,
     sessionCount: service.bridge.sessionManager.sessionCount,
   });

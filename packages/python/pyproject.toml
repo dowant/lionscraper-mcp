@@ -22,10 +22,8 @@ classifiers = [
 ]
 dependencies = [
   "aiohttp>=3.9.0",
-  "httpx>=0.27.0",
   "pydantic>=2.6.0",
   "mcp>=1.8.0",
-  "websockets>=12.0",
 ]
 
 [project.urls]
@@ -41,21 +39,8 @@ lionscraper = "lionscraper.cli.entry:main_cli"
 [tool.setuptools.dynamic]
 version = { file = "VERSION" }
 
-[tool.setuptools]
-package-dir = { "lionscraper" = "src" }
-packages = [
-  "lionscraper",
-  "lionscraper.constants",
-  "lionscraper.i18n",
-  "lionscraper.utils",
-  "lionscraper.types",
-  "lionscraper.bridge",
-  "lionscraper.core",
-  "lionscraper.daemon",
-  "lionscraper.client",
-  "lionscraper.cli",
-  "lionscraper.mcp",
-]
+[tool.setuptools.packages.find]
+where = ["src"]
 
 [tool.setuptools.package-data]
 lionscraper = ["locale/*.json"]
@@ -63,3 +48,4 @@ lionscraper = ["locale/*.json"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+pythonpath = ["src"]

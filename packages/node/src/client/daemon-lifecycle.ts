@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { resolveLionscraperJsFromPackageDir } from '../utils/resolve-lionscraper-js.js';
 import { daemonHealth } from './daemon-client.js';
 import { getDaemonAuthToken, getDaemonHttpBaseUrl } from '../utils/daemon-config.js';
 import { logT, portLang } from '../i18n/lang.js';
@@ -11,12 +12,7 @@ const HEALTH_MAX_WAIT_MS = 20_000;
 
 function resolveLionscraperJsPath(): string {
   const dir = path.dirname(fileURLToPath(import.meta.url));
-  const parts = dir.split(path.sep);
-  const distIdx = parts.lastIndexOf('dist');
-  if (distIdx >= 0) {
-    return path.join(...parts.slice(0, distIdx + 1), 'lionscraper.js');
-  }
-  return path.join(dir, '..', '..', 'dist', 'lionscraper.js');
+  return resolveLionscraperJsFromPackageDir(dir);
 }
 
 function sleep(ms: number): Promise<void> {

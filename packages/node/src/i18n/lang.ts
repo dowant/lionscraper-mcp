@@ -51,6 +51,7 @@ export type MessageId =
   | 'disconnect.extension_gone'
   | 'disconnect.server_shutdown'
   | 'mcp_tool.response_truncated_after_limit'
+  | 'http_fetch_fallback.note'
   | 'daemon_unreachable.message'
   | 'daemon_unreachable.hint';
 
@@ -81,6 +82,7 @@ function flattenServerMessages(sm: ServerMessages): Record<MessageId, string> {
     'disconnect.extension_gone': sm.disconnect.extension_gone,
     'disconnect.server_shutdown': sm.disconnect.server_shutdown,
     'mcp_tool.response_truncated_after_limit': sm.mcpTool.responseTruncatedAfterLimit,
+    'http_fetch_fallback.note': sm.httpFetchFallback.note,
     'daemon_unreachable.message': sm.daemonUnreachable.message,
     'daemon_unreachable.hint': sm.daemonUnreachable.hint,
   };

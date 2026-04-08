@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from typing import Any, Awaitable, Callable, TypedDict
 
-import httpx
+import aiohttp
 
 from lionscraper.i18n.lang import port_lang, t
 from lionscraper.types.errors import ClientErrorCode
@@ -165,12 +165,13 @@ async def _call_daemon_tool_unsafe(
     if use_stream:
         body["progressToken"] = progress_token
 
-    async with httpx.AsyncClient(timeout=600.0) as client:
+    timeout = aiohttp.ClientTimeout(total=600.0)
+    async with aiohttp.ClientSession(timeout=timeout) as session:
         if use_stream:
-            async with client.stream("POST", url, headers=headers, json=body) as res:
-                text = (await res.aread()).decode("utf-8", errors="replace")
-                if res.status_code == 200:
-                    ct = (res.headers.get("content-type") or "").lower()
+            async with session.post(url, headers=headers, json=body) as res:
+                text = await res.text(encoding="utf-8", errors="replace")
+                if res.status == 200:
+                    ct = (res.headers.get("Content-Type") or "").lower()
                     lines = text.split("\n")
                     if "ndjson" in ct:
                         return await _process_ndjson_lines(lines, on_progress)  # type: ignore[arg-type]
@@ -182,49 +183,53 @@ async def _call_daemon_tool_unsafe(
                     except json.JSONDecodeError:
                         return _invalid_response_result(
                             "Expected application/x-ndjson from daemon for streaming tool call, but body was not valid NDJSON or JSON",
-                            {"contentType": res.headers.get("content-type") or "", "snippet": text[:200]},
+                            {"contentType": res.headers.get("Content-Type") or "", "snippet": text[:200]},
                         )
-                return _handle_non_ok_response(res.status_code, text)
+                return _handle_non_ok_response(res.status, text)
 
-        res = await client.post(url, headers=headers, json=body)
-        text = res.text
-        if res.status_code != 200:
-            return _handle_non_ok_response(res.status_code, text)
-        try:
-            return json.loads(text)
-        except json.JSONDecodeError:
-            return _invalid_response_result(
-                "Invalid JSON from daemon (non-streaming response)",
-                {"snippet": text[:200]},
-            )
+        async with session.post(url, headers=headers, json=body) as res:
+            text = await res.text(encoding="utf-8", errors="replace")
+            if res.status != 200:
+                return _handle_non_ok_response(res.status, text)
+            try:
+                return json.loads(text)
+            except json.JSONDecodeError:
+                return _invalid_response_result(
+                    "Invalid JSON from daemon (non-streaming response)",
+                    {"snippet": text[:200]},
+                )
 
 
 async def daemon_health(base_url: str, auth_token: str | None = None) -> dict[str, Any]:
     url = f"{base_url.rstrip('/')}/v1/health"
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        try:
-            res = await client.get(url, headers=_auth_headers(auth_token))
-        except Exception as e:
-            raise RuntimeError(str(e)) from e
-        text = res.text
-        if not res.is_success:
-            raise RuntimeError(text or f"HTTP {res.status_code}")
-        try:
-            parsed = json.loads(text)
-        except json.JSONDecodeError as e:
-            raise RuntimeError("Invalid JSON from daemon health endpoint") from e
-        if not isinstance(parsed, dict):
-            raise RuntimeError("Invalid daemon health response")
-        if parsed.get("ok") is not True:
-            raise RuntimeError("Daemon health reports not ready")
-        if parsed.get("identity") is not None and parsed.get("identity") != "lionscraper":
-            raise RuntimeError("Not a LionScraper daemon (identity mismatch)")
-        bp = parsed.get("bridgePort")
-        if not isinstance(bp, (int, float)) or bp <= 0:
-            raise RuntimeError("Daemon WebSocket bridge is not ready (invalid bridgePort)")
-        raw_sc = parsed.get("sessionCount", 0)
-        session_count = max(0, int(raw_sc)) if isinstance(raw_sc, (int, float)) else 0
-        out: dict[str, Any] = {"ok": True, "bridgePort": int(bp), "sessionCount": session_count}
-        if isinstance(parsed.get("identity"), str):
-            out["identity"] = parsed["identity"]
-        return out
+    timeout = aiohttp.ClientTimeout(total=10.0)
+    try:
+        async with aiohttp.ClientSession(timeout=timeout) as session:
+            async with session.get(url, headers=_auth_headers(auth_token)) as res:
+                text = await res.text(encoding="utf-8", errors="replace")
+                if res.status < 200 or res.status >= 300:
+                    raise RuntimeError(text or f"HTTP {res.status}")
+                try:
+                    parsed = json.loads(text)
+                except json.JSONDecodeError as e:
+                    raise RuntimeError("Invalid JSON from daemon health endpoint") from e
+                if not isinstance(parsed, dict):
+                    raise RuntimeError("Invalid daemon health response")
+                if parsed.get("ok") is not True:
+                    raise RuntimeError("Daemon health reports not ready")
+                if parsed.get("identity") is not None and parsed.get("identity") != "lionscraper":
+                    raise RuntimeError("Not a LionScraper daemon (identity mismatch)")
+                bp = parsed.get("bridgePort")
+                if not isinstance(bp, (int, float)) or bp <= 0:
+                    raise RuntimeError("Daemon WebSocket bridge is not ready (invalid bridgePort)")
+                raw_sc = parsed.get("sessionCount", 0)
+                session_count = max(0, int(raw_sc)) if isinstance(raw_sc, (int, float)) else 0
+                out: dict[str, Any] = {"ok": True, "bridgePort": int(bp), "sessionCount": session_count}
+                if isinstance(parsed.get("identity"), str):
+                    out["identity"] = parsed["identity"]
+                impl = parsed.get("implementation")
+                if isinstance(impl, str) and impl in ("node", "python"):
+                    out["implementation"] = impl
+                return out
+    except aiohttp.ClientError as e:
+        raise RuntimeError(str(e)) from e

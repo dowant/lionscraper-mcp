@@ -28,6 +28,8 @@
 4. **若使用 MCP**：需安装支持 MCP 的 AI 软件（例如 Cursor、Trae 等）。
 5. **若使用 HTTP API**：与 CLI 相同，需要浏览器、扩展与守护进程；路径与示例见各子包 README。
 
+**无 Chrome/Edge 时的 HTTP 兜底**：若标准路径下检测不到两种浏览器且扩展未连接，MCP 仍可启动；`ping` 会返回成功并标明 **http_fetch** 模式，`scrape*` 由服务端做简单 HTTP 抓取（不执行 JavaScript）。已安装浏览器但未连扩展时，仍会走扩展连接引导。Node 在 Linux/Docker 全局安装下已修复自动拉起守护进程时 **`lionscraper.js` 路径丢失根 `/`** 的问题。Python 包对守护进程的 HTTP/WebSocket 出站统一使用 **aiohttp**。
+
 ## 两种实现
 
 | | **Node.js（npm）** | **Python（pip）** |
@@ -53,10 +55,10 @@ npm install -g lionscraper
 本服务已发布在 PyPI，包名为 **[lionscraper](https://pypi.org/project/lionscraper/)**。
 
 ```bash
-pip install lionscraper
+pip install -U lionscraper
 ```
 
-建议使用 **虚拟环境**，或使用 `pip install --user lionscraper` 安装到用户目录。
+建议使用 **虚拟环境**，或使用 `pip install -U --user lionscraper` 安装到用户目录。
 
 ### 命令说明（两种包一致）
 
@@ -65,7 +67,7 @@ pip install lionscraper
 | **`lionscraper-mcp`** | 薄 MCP 服务（stdio），供 AI 软件连接 |
 | **`lionscraper`** | CLI：`daemon`、`stop`、`scrape`、`ping` 等（并在同一端口提供 **HTTP API**） |
 
-在 **`pip install`** 之后，若 `lionscraper-mcp` 不在 `PATH` 上，可使用 **`python -m lionscraper`** 且**不要跟额外参数**，即走 MCP stdio（详见 [packages/python/README.md](packages/python/README.md)）。
+在 **`pip install -U lionscraper`** 之后，若 `lionscraper-mcp` 不在 `PATH` 上，可使用 **`python -m lionscraper`** 且**不要跟额外参数**，即走 MCP stdio（详见 [packages/python/README.md](packages/python/README.md)）。
 
 **`PORT`**（默认 **13808**）须与扩展里的**桥接端口**一致（任意模式均如此）。
 
@@ -149,7 +151,7 @@ lionscraper scrape -u https://www.example.com
 }
 ```
 
-若要固定版本，可将 `args` 中的 `lionscraper` 改为例如 `lionscraper@1.0.5`。
+若要固定版本，可将 `args` 中的 `lionscraper` 改为例如 `lionscraper@1.0.1`。
 
 - **`PORT`**：**HTTP + WebSocket** 监听端口，默认 **13808**，须与扩展 **桥接端口** 一致。
 - **`TIMEOUT`**：占口接管时等待上一实例退出的毫秒数，默认 **120000**；**`0`** 表示尽快强制接管。
@@ -223,7 +225,7 @@ lionscraper scrape -u https://www.example.com
 
 - **license - not found**：仓库根目录需提供可被识别的 **`LICENSE`** 文件（本仓库已包含 [LICENSE](LICENSE)）。
 - **不可安装 / 不可检视**：通常需在 Glama 上对服务 **Claim**（GitHub 验证）；组织仓库宜在根目录提供 **`glama.json`** 并填写可认领成员的 GitHub 用户名（见 [glama.json](glama.json)；若认领失败，请将 `maintainers` 改为实际维护者用户名）。
-- **security / quality 未测试**：多表示尚未完成 Glama 侧的 **Docker 构建与 Release** 流程；若仅需本地使用，**官方安装方式**仍是 **`npm install -g lionscraper`** 与 **`pip install lionscraper`**。
+- **security / quality 未测试**：多表示尚未完成 Glama 侧的 **Docker 构建与 Release** 流程；若仅需本地使用，**官方安装方式**仍是 **`npm install -g lionscraper`** 与 **`pip install -U lionscraper`**。
 
 评分细则可参考：[Glama Score 页面](https://glama.ai/mcp/servers/dowant/lionscraper-mcp/score)。
 

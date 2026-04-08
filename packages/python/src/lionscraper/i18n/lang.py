@@ -99,6 +99,7 @@ def _flatten_server_messages(sm: dict[str, Any]) -> dict[str, str]:
         "disconnect.extension_gone": sm["disconnect"]["extension_gone"],
         "disconnect.server_shutdown": sm["disconnect"]["server_shutdown"],
         "mcp_tool.response_truncated_after_limit": sm["mcpTool"]["responseTruncatedAfterLimit"],
+        "http_fetch_fallback.note": sm["httpFetchFallback"]["note"],
         "daemon_unreachable.message": sm["daemonUnreachable"]["message"],
         "daemon_unreachable.hint": sm["daemonUnreachable"]["hint"],
     }
